@@ -7,6 +7,7 @@ import { Ghosts } from './ghosts.js';
 import { Net } from './net.js';
 import { UI } from './ui.js';
 import { sfx } from './audio.js';
+import { FX } from './fx.js';
 
 // ================== セットアップ ==================
 const canvas = document.getElementById('game');
@@ -32,6 +33,7 @@ const input = new Input(canvas);
 const ghosts = new Ghosts(scene);
 const net = new Net();
 const ui = new UI();
+const fx = new FX(scene);
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -57,6 +59,16 @@ let state = 'title'; // title | play | clear
 let runStart = 0;
 let clearMsThisRun = 0;
 let nextMilestone = 50;
+
+// コンボ: 前回より高い足場に連続で乗れた回数。落ちたらリセット。
+let combo = 0;
+let comboTopY = 0;
+
+function resetCombo() {
+  combo = 0;
+  comboTopY = 0;
+  ui.hideCombo();
+}
 
 ui.el.nameInput.value = me.name;
 ui.showTitle(false);
@@ -87,6 +99,7 @@ function startRun() {
   runStart = performance.now();
   nextMilestone = 50;
   clearMsThisRun = 0;
+  resetCombo();
   state = 'play';
   input.enabled = true;
   ui.startGame();
@@ -99,6 +112,7 @@ document.getElementById('btnRestart').addEventListener('click', () => {
   player.spawnKeepBest();
   runStart = performance.now();
   nextMilestone = 50;
+  resetCombo();
   state = 'play';
   ui.hideClear();
   ui.toast('スタートに戻った');
@@ -107,6 +121,7 @@ document.getElementById('btnClearRestart').addEventListener('click', () => {
   player.spawnKeepBest();
   runStart = performance.now();
   nextMilestone = 50;
+  resetCombo();
   state = 'play';
   ui.hideClear();
 });
@@ -182,6 +197,10 @@ camera.lookAt(0, 1, 0);
 const FIXED = 1 / 60;
 let acc = 0;
 let last = performance.now();
+let tPrevFrame = Date.now() / 1000;
+
+// コンボ数に応じたピッチ倍率 (音が上がっていく = 気持ちいい)
+const comboRate = () => 1 + Math.min(combo, 12) * 0.04;
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -189,24 +208,65 @@ function frame(now) {
   last = now;
 
   const t = Date.now() / 1000; // 動く足場は実時間ベース (全端末でほぼ同期)
+  let frozen = false;
 
   if (state === 'play' || state === 'clear') {
     input.poll();
-    acc += dt;
-    let steps = 0;
-    while (acc >= FIXED && steps < 4) {
-      player.update(FIXED, input, camYaw, t, t - FIXED);
-      acc -= FIXED;
-      steps++;
+    frozen = fx.tickFreeze(dt);
+    if (!frozen) {
+      acc += dt;
+      let steps = 0;
+      while (acc >= FIXED && steps < 4) {
+        player.update(FIXED, input, camYaw, t, t - FIXED);
+        acc -= FIXED;
+        steps++;
+      }
+    } else if (player.grounded && player.standing?.move) {
+      // ヒットストップ中も動く足場には運ばれる (置き去りで落ちるのを防ぐ)
+      const d = world.offset(player.standing, t) - world.offset(player.standing, tPrevFrame);
+      if (player.standing.move.axis === 'x') player.pos.x += d;
+      else player.pos.z += d;
+      player.mesh.position.copy(player.pos);
     }
 
-    // イベント処理
+    // イベント処理 (アクションへの即時フィードバック)
+    const feetY = player.pos.y - CONFIG.PLAYER_HALF_H;
     for (const ev of player.events) {
-      if (ev === 'jump') sfx.jump();
-      else if (ev === 'land') sfx.land();
-      else if (ev === 'fell') {
+      if (ev.t === 'jump') {
+        sfx.jump(comboRate());
+        fx.burst(player.pos.x, feetY, player.pos.z, {
+          count: 7, color: 0xffffff, speed: 1.6, up: 0.6,
+          gravity: 3, life: 0.35, spread: 0.25,
+        });
+      } else if (ev.t === 'land') {
+        const k = THREE.MathUtils.clamp(ev.impact / 16, 0, 1);
+        if (ev.impact > 2.5) {
+          sfx.land(k);
+          fx.burst(player.pos.x, feetY, player.pos.z, {
+            count: Math.round(6 + k * 14), color: 0xf0ead8,
+            speed: 1 + k * 3, up: 0.8 + k, gravity: 6, life: 0.45 + k * 0.3, spread: 0.3,
+          });
+        }
+        if (ev.impact > 9) {
+          fx.shake(0.2 + k * 0.3); // 強い着地は画面も揺れる
+          fx.vibrate(15);
+        }
+        // コンボ: 今までより高い足場に乗れたら加算
+        if (ev.topY > comboTopY + 0.3) {
+          combo++;
+          comboTopY = ev.topY;
+          if (combo >= 2) {
+            sfx.combo(combo);
+            ui.showCombo(combo);
+          }
+        }
+      } else if (ev.t === 'fell') {
         sfx.fall();
         ui.toast('落ちた……');
+        fx.shake(0.65);
+        fx.flash('rgba(255, 60, 60, 0.32)', 220);
+        fx.vibrate([60, 40, 60]);
+        resetCombo();
       }
     }
     player.events.length = 0;
@@ -217,10 +277,18 @@ function frame(now) {
       localStorage.setItem(STORAGE.BEST, String(allTimeBest));
     }
 
-    // マイルストーン
+    // マイルストーン (ヒットストップで「タメ」を作り、金色の火花を散らす)
     if (player.pos.y >= nextMilestone && state === 'play') {
       ui.toast(`${nextMilestone}m 到達!`);
       sfx.milestone();
+      fx.hitStop(0.12);
+      fx.shake(0.35);
+      fx.vibrate(30);
+      fx.burst(player.pos.x, player.pos.y, player.pos.z, {
+        count: 28, color: 0xffd166, speed: 4, up: 2.5,
+        gravity: 5, life: 0.9, spread: 0.4,
+      });
+      ui.popHeight();
       nextMilestone += 50;
     }
 
@@ -237,6 +305,17 @@ function frame(now) {
         localStorage.setItem(STORAGE.CLEAR_MS, String(bestClearMs));
       }
       sfx.clear();
+      // 登頂の瞬間: 長めのヒットストップ + 紙吹雪
+      fx.hitStop(0.28);
+      fx.shake(0.5);
+      fx.vibrate([40, 60, 40, 60, 120]);
+      const confetti = [0xff6b6b, 0xffd166, 0x8ce99a, 0x74c0fc, 0xb197fc];
+      confetti.forEach((c, i) => {
+        fx.burst(player.pos.x, player.pos.y + 1 + i * 0.2, player.pos.z, {
+          count: 18, color: c, speed: 4.5, up: 5,
+          gravity: 4, life: 1.4, spread: 0.6,
+        });
+      });
       ui.showClear(clearMsThisRun);
       net.submitScore(me.name, Math.max(allTimeBest, world.goalY), bestClearMs);
     }
@@ -259,7 +338,9 @@ function frame(now) {
   updateCamera(dt);
   ghosts.tick(dt);
   world.update(t, dt, player.pos.y, renderer, scene);
+  fx.update(dt, camera, frozen); // カメラ確定後にシェイクを乗せる
   renderer.render(scene, camera);
+  tPrevFrame = t;
 }
 requestAnimationFrame(frame);
 

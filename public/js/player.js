@@ -47,6 +47,7 @@ export class Player {
     this.yaw = 0;
     this.squash = 0;               // 着地の潰れ演出
     this.maxY = 0;
+    this.events = [];              // 1フレーム分の演出イベント (main が消費)
 
     this.mesh = buildAvatar(0xff9f43);
     scene.add(this.mesh);
@@ -74,7 +75,7 @@ export class Player {
     this.grounded = true;
     this.standing = null;
     this.maxY = 0;
-    this.events = [];
+    // this.events はここでは消さない (落下→リスポーン時に 'fell' が消えるため)
   }
 
   aabbOverlap(b) {
@@ -89,7 +90,6 @@ export class Player {
   update(dt, input, camYaw, t, tPrev) {
     const C = CONFIG;
     const near = this.world.nearby(this.pos.y - 4, this.pos.y + 4, this._near);
-    this.events.length = 0;
 
     // --- 乗っている動く足場に運ばれる ---
     if (this.grounded && this.standing && this.standing.move) {
@@ -128,7 +128,7 @@ export class Player {
       this.coyote = 0;
       this.jumpBuffer = 0;
       this.squash = -0.18;
-      this.events.push('jump');
+      this.events.push({ t: 'jump' });
     }
 
     // --- 重力・縦移動 ---
@@ -144,7 +144,10 @@ export class Player {
       if (this.vel.y <= 0 && prevFeet >= b.maxY - 0.25) {
         // 上面に着地
         this.pos.y = b.maxY + C.PLAYER_HALF_H;
-        if (!this.grounded && this.vel.y < -6) this.events.push('land');
+        if (!this.grounded) {
+          // 落下速度 = 衝撃の強さ。着地先の上面高さはコンボ判定に使う
+          this.events.push({ t: 'land', impact: -this.vel.y, topY: b.maxY });
+        }
         if (this.vel.y < -6) this.squash = Math.min(0.28, -this.vel.y * 0.02);
         this.vel.y = 0;
         this.grounded = true;
@@ -202,18 +205,22 @@ export class Player {
 
     // --- 奈落 ---
     if (this.pos.y < C.KILL_Y) {
-      this.events.push('fell');
+      this.events.push({ t: 'fell' });
       this.spawnKeepBest();
     }
 
     this.maxY = Math.max(this.maxY, this.pos.y - C.PLAYER_HALF_H - 0.1);
 
-    // --- 見た目 ---
+    // --- 見た目 (Squash & Stretch) ---
     this.squash *= Math.pow(0.001, dt); // 減衰
+    let squash = this.squash;
+    if (!this.grounded) {
+      // 空中では速度に応じて縦に伸びる (負の squash = ストレッチ)
+      squash -= THREE.MathUtils.clamp(Math.abs(this.vel.y) * 0.016, 0, 0.18);
+    }
     this.mesh.position.copy(this.pos);
     this.mesh.rotation.y = this.yaw;
-    const sy = 1 - this.squash;
-    this.mesh.scale.set(1 + this.squash * 0.6, sy, 1 + this.squash * 0.6);
+    this.mesh.scale.set(1 + squash * 0.6, 1 - squash, 1 + squash * 0.6);
 
     const gy = this.world.groundTopBelow(this.pos.x, this.pos.z, this.pos.y - C.PLAYER_HALF_H + 0.1, t, tmpBox);
     if (gy !== null && this.pos.y - gy < 9) {

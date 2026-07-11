@@ -7,7 +7,7 @@ export const CONFIG = {
   GRAVITY: 22,
   JUMP_VEL: 9.6,             // ジャンプ高 ≈ 2.1m
   MOVE_SPEED: 6.2,
-  STICK_FORWARD_COS: 0.5,    // cos(60°): スティックがこの範囲内 (前方±60°) の時だけ前進、それ以外はその場で旋回
+  STICK_DEADZONE: 0.12,      // スティックの遊び。これ以下の入力は無視し、超えた分を 0〜1 に再スケール
   GROUND_ACCEL: 46,
   AIR_ACCEL: 20,
   COYOTE_TIME: 0.12,
@@ -17,10 +17,10 @@ export const CONFIG = {
   PLAYER_HALF_H: 0.75,
 
   CAM_DIST: 7.5,
-  CAM_FOV: 72,               // 視野角 (広めにして周囲の足場を見やすく)
+  CAM_FOV: 110,              // 視野角。画面に写る範囲が従来 (72°) の2倍になる画角 (2·atan(2·tan(36°)) ≈ 110°)
   CAM_PITCH_MIN: -0.25,
   CAM_PITCH_MAX: 1.25,
-  CAM_FOLLOW: 5.0,           // 体の真後ろへカメラが回り込む速さ (一人称と同じ向きの三人称)
+  CAM_FOLLOW: 2.0,           // 前進中にカメラが背後へゆるく回り込む速さ (横移動では回さない)
   CAM_MANUAL_HOLD: 1.2,      // 手動カメラ操作後に自動追従を止める秒数
 
   BOW_TIME: 0.9,             // 会釈 (おじぎ) の長さ (秒)

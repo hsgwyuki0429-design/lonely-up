@@ -95,7 +95,6 @@ function startRun() {
   sfx.unlock();
   player.spawn();
   camYaw = Math.PI;
-  moveRefYaw = Math.PI;
   camPitch = 0.35;
   runStart = performance.now();
   nextMilestone = 50;
@@ -165,8 +164,6 @@ document.addEventListener('visibilitychange', () => {
 let camYaw = Math.PI;
 let camPitch = 0.35;
 let camManualT = 0;      // 手動カメラ操作の余韻 (この間は自動追従しない)
-let moveRefYaw = Math.PI; // 移動入力の基準カメラ向き (スティックを倒した瞬間に固定)
-let moveHeld = false;
 const camTarget = new THREE.Vector3();
 const camPos = new THREE.Vector3();
 
@@ -174,25 +171,6 @@ function wrapAngle(a) {
   while (a > Math.PI) a -= Math.PI * 2;
   while (a < -Math.PI) a += Math.PI * 2;
   return a;
-}
-
-// 移動の基準フレームを更新: スティックを倒した瞬間のカメラ向きに固定することで、
-// カメラが背中側へ回り込む間も進行方向がブレず、確実に「背後からの視点」に収束する
-function updateMoveRef() {
-  const mag = Math.hypot(input.move.x, input.move.y);
-  if (mag > 0.1) {
-    if (!moveHeld) {
-      moveRefYaw = camYaw;
-      moveHeld = true;
-    }
-    // スティックがほぼ前方向 = 「今見ている方向へ進む」なので基準を現在のカメラに追従。
-    // 横に倒している間は基準を固定し、旋回→カメラが真後ろに付くまで待つ
-    if (Math.abs(Math.atan2(input.move.x, input.move.y)) < 0.35) moveRefYaw = camYaw;
-  } else {
-    moveHeld = false;
-  }
-  // 手動カメラ操作中は従来どおりカメラ基準の操作感
-  if (input.camDragging || camManualT > 0) moveRefYaw = camYaw;
 }
 
 function updateCamera(dt) {
@@ -208,13 +186,15 @@ function updateCamera(dt) {
   camPitch = THREE.MathUtils.clamp(
     camPitch + d.y * 0.005, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
 
-  // 体の向き (= 一人称なら見ている方向) の真後ろへカメラが回り込む。
-  // 移動方向は moveRefYaw 基準で固定されるので、必ず背後視点に収束する
+  // カメラの自動回り込みは「前へ進んでいる時」だけゆるく効かせる。
+  // 横移動でカメラが回ると移動方向 (カメラ基準) が流されて円を描いてしまうため、
+  // 横・後ろ入力ではカメラを固定する (最近の3Dゲームのレイジーカメラと同じ挙動)
   camManualT = Math.max(camManualT - dt, 0);
   const moveMag = Math.min(Math.hypot(input.move.x, input.move.y), 1);
-  if (camManualT <= 0 && !input.camDragging && moveMag > 0.1) {
+  const fwdRatio = Math.max(input.move.y, 0); // スティックの前方向成分 = カメラから離れる移動
+  if (camManualT <= 0 && !input.camDragging && moveMag > 0.1 && fwdRatio > 0) {
     const diff = wrapAngle(player.yaw + Math.PI - camYaw);
-    camYaw += diff * Math.min(dt * CONFIG.CAM_FOLLOW, 1);
+    camYaw += diff * Math.min(dt * CONFIG.CAM_FOLLOW * fwdRatio, 1);
   }
 
   const dist = CONFIG.CAM_DIST;
@@ -251,13 +231,12 @@ function frame(now) {
 
   if (state === 'play' || state === 'clear') {
     input.poll();
-    updateMoveRef();
     frozen = fx.tickFreeze(dt);
     if (!frozen) {
       acc += dt;
       let steps = 0;
       while (acc >= FIXED && steps < 4) {
-        player.update(FIXED, input, moveRefYaw, t, t - FIXED, ghosts);
+        player.update(FIXED, input, camYaw, t, t - FIXED, ghosts);
         acc -= FIXED;
         steps++;
       }

@@ -113,23 +113,21 @@ export class Player {
     }
 
     // --- 入力 → カメラ基準の移動ベクトル ---
+    // 最近の3Dゲーム標準: スティックを倒した方向 (カメラ基準) へ全方向そのまま移動し、
+    // キャラクターは進行方向を向くように旋回する。傾け量がそのまま速度になる
     const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);   // カメラ前方 (水平)
     const rx = -fz, rz = fx;                                 // カメラ右
     const mx = fx * input.move.y + rx * input.move.x;
     const mz = fz * input.move.y + rz * input.move.x;
     const mag = Math.min(Math.hypot(mx, mz), 1);
-    const inputMag = Math.hypot(input.move.x, input.move.y);
-    // 前進判定: スティックがほぼ前方向 (上) を向いている時だけ実際に歩く。
-    // それ以外 (横・斜め後ろ・後ろ) はその場で向きを変えるだけで移動しない。
-    const isForward = inputMag > 0.05 && input.move.y / inputMag > C.STICK_FORWARD_COS;
 
     const accel = this.grounded ? C.GROUND_ACCEL : C.AIR_ACCEL;
     const speed = C.MOVE_SPEED * (this.bowT > 0 ? 0.25 : 1); // おじぎ中はゆっくり
-    const tx = isForward && mag > 0.001 ? (mx / Math.hypot(mx, mz)) * speed * mag : 0;
-    const tz = isForward && mag > 0.001 ? (mz / Math.hypot(mx, mz)) * speed * mag : 0;
+    const tx = mag > 0.001 ? (mx / Math.hypot(mx, mz)) * speed * mag : 0;
+    const tz = mag > 0.001 ? (mz / Math.hypot(mx, mz)) * speed * mag : 0;
     this.vel.x += THREE.MathUtils.clamp(tx - this.vel.x, -accel * dt, accel * dt);
     this.vel.z += THREE.MathUtils.clamp(tz - this.vel.z, -accel * dt, accel * dt);
-    if (inputMag > 0.05) {
+    if (mag > 0.001) {
       const wantYaw = Math.atan2(mx, mz);
       let d = wantYaw - this.yaw;
       while (d > Math.PI) d -= Math.PI * 2;

@@ -1,6 +1,7 @@
 // タッチ操作: 画面左半分 = バーチャルジョイスティック / 右半分 = カメラドラッグ
 // PC: WASD・矢印キー + Space、C で会釈、マウスドラッグでカメラ
 import { sfx } from './audio.js';
+import { CONFIG } from './config.js';
 
 export class Input {
   constructor(canvas) {
@@ -82,11 +83,22 @@ export class Input {
       let dy = e.clientY - this._joyOrigin.y;
       const len = Math.hypot(dx, dy);
       if (len > this.JOY_R) {
+        // フローティングスティック: 指が可動域を超えたら基部が指を追いかける。
+        // 引き返した瞬間に入力方向が反転するので、切り返しの反応が速い
+        const over = (len - this.JOY_R) / len;
+        this._joyOrigin.x += dx * over;
+        this._joyOrigin.y += dy * over;
+        this.joyEl.style.left = `${this._joyOrigin.x - 60}px`;
+        this.joyEl.style.top = `${this._joyOrigin.y - 60}px`;
         dx = (dx / len) * this.JOY_R;
         dy = (dy / len) * this.JOY_R;
       }
-      this.move.x = dx / this.JOY_R;
-      this.move.y = -dy / this.JOY_R; // 画面上方向 = 前進
+      // デッドゾーン: 遊びの内側は 0、外側は 0〜1 に再スケール (傾け量 = 速度)
+      const m = Math.hypot(dx, dy) / this.JOY_R;
+      const dz = CONFIG.STICK_DEADZONE;
+      const scaled = m <= dz ? 0 : (m - dz) / (1 - dz);
+      this.move.x = m > 0 ? (dx / (m * this.JOY_R)) * scaled : 0;
+      this.move.y = m > 0 ? (-dy / (m * this.JOY_R)) * scaled : 0; // 画面上方向 = 前進
       this.setKnob(dx, dy);
     } else if (e.pointerId === this._camId) {
       this.camDelta.x += e.clientX - this._camLast.x;

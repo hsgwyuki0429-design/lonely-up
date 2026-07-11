@@ -180,15 +180,18 @@ function updateCamera(dt) {
   camPitch = THREE.MathUtils.clamp(
     camPitch + d.y * 0.005, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
 
-  // スティックで進んだ方向へカメラが回り込む (手動操作の直後は邪魔しない)
+  // スティックで進むと体の向きが変わり、カメラが背中側へ回り込む
+  // (横移動でもしっかり後ろに付く。手動カメラ操作の直後は邪魔しない)
   camManualT = Math.max(camManualT - dt, 0);
   const moveMag = Math.min(Math.hypot(input.move.x, input.move.y), 1);
-  if (camManualT <= 0 && !input.camDragging && moveMag > 0.2) {
-    const target = player.yaw + Math.PI; // プレイヤーの背中側へ回る
+  if (camManualT <= 0 && !input.camDragging && moveMag > 0.1) {
+    const target = player.yaw + Math.PI; // プレイヤーの背中側
     let diff = target - camYaw;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    camYaw += diff * Math.min(dt * CONFIG.CAM_FOLLOW * moveMag, 1);
+    // 弱い入力でも半分の速さで追従し、フルなら最速で回り込む
+    const w = 0.5 + 0.5 * moveMag;
+    camYaw += diff * Math.min(dt * CONFIG.CAM_FOLLOW * w, 1);
   }
 
   const dist = CONFIG.CAM_DIST;

@@ -7,6 +7,7 @@ export const CONFIG = {
   GRAVITY: 22,
   JUMP_VEL: 9.6,             // ジャンプ高 ≈ 2.1m
   MOVE_SPEED: 6.2,
+  STICK_FORWARD_COS: 0.5,    // cos(60°): スティックがこの範囲内 (前方±60°) の時だけ前進、それ以外はその場で旋回
   GROUND_ACCEL: 46,
   AIR_ACCEL: 20,
   COYOTE_TIME: 0.12,

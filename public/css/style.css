@@ -94,7 +94,7 @@ html, body {
   pointer-events: auto;
   position: absolute;
   right: calc(env(safe-area-inset-right, 0px) + 22px);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 30px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 128px); /* しゃがみボタンの上 */
   width: 88px;
   height: 88px;
   border-radius: 50%;
@@ -110,23 +110,23 @@ html, body {
 #btnJump { transition: transform 0.06s ease-out; }
 #btnJump:active { transform: scale(0.88, 0.92); } /* 押した瞬間に少し潰れる */
 
-/* 会釈 (おじぎ) ボタン: JUMP の左隣に小さめで */
+/* しゃがみ (会釈) ボタン: JUMP と同サイズでその真下に */
 #btnBow {
   pointer-events: auto;
   position: absolute;
-  right: calc(env(safe-area-inset-right, 0px) + 122px);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
-  width: 58px;
-  height: 58px;
+  right: calc(env(safe-area-inset-right, 0px) + 22px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 30px);
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.3);
   background: rgba(10, 16, 32, 0.55);
   backdrop-filter: blur(6px);
-  font-size: 24px;
+  font-size: 36px;
   cursor: pointer;
   transition: transform 0.06s ease-out;
 }
-#btnBow:active { transform: scale(0.86); }
+#btnBow:active { transform: scale(0.88, 0.92); }
 
 /* ===== juice (画面フラッシュ / コンボ / 高度ポップ) ===== */
 #flash {
@@ -299,6 +299,6 @@ html, body {
 .rankrow .rtime { font-size: 11px; opacity: 0.7; font-variant-numeric: tabular-nums; }
 
 @media (min-width: 768px) {
-  #btnJump { width: 76px; height: 76px; }
-  #btnBow { right: calc(env(safe-area-inset-right, 0px) + 110px); width: 52px; height: 52px; }
+  #btnJump { width: 76px; height: 76px; bottom: calc(env(safe-area-inset-bottom, 0px) + 116px); }
+  #btnBow { width: 76px; height: 76px; font-size: 30px; }
 }

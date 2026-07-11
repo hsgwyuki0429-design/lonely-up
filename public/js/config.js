@@ -17,7 +17,7 @@ export const CONFIG = {
   PLAYER_HALF_H: 0.75,
 
   CAM_DIST: 7.5,
-  CAM_FOV: 72,               // 視野角 (広めにして周囲の足場を見やすく)
+  CAM_FOV: 110,              // 視野角。画面に写る範囲が従来 (72°) の2倍になる画角 (2·atan(2·tan(36°)) ≈ 110°)
   CAM_PITCH_MIN: -0.25,
   CAM_PITCH_MAX: 1.25,
   CAM_FOLLOW: 2.0,           // 前進中にカメラが背後へゆるく回り込む速さ (横移動では回さない)

@@ -21,6 +21,8 @@ export class UI {
       clearPanel: document.getElementById('clearPanel'),
       clearTime: document.getElementById('clearTime'),
       toasts: document.getElementById('toasts'),
+      combo: document.getElementById('combo'),
+      comboNum: document.getElementById('comboNum'),
     };
   }
 
@@ -43,6 +45,29 @@ export class UI {
     this.el.best.textContent = `${Math.max(best, 0).toFixed(1)}m`;
     this.el.timer.textContent = fmtTime(elapsedMs);
     this.el.online.textContent = String(online);
+  }
+
+  // コンボ表示: 数が増えるほど大きくポップする
+  showCombo(n) {
+    this.el.comboNum.textContent = String(n);
+    const c = this.el.combo;
+    c.classList.remove('hidden');
+    c.style.fontSize = `${Math.min(20 + n * 1.4, 38)}px`;
+    c.classList.remove('pop');
+    void c.offsetWidth; // アニメーション再トリガー
+    c.classList.add('pop');
+  }
+
+  hideCombo() {
+    this.el.combo.classList.add('hidden');
+  }
+
+  // 高度表示を一瞬拡大 (マイルストーン到達時)
+  popHeight() {
+    const h = this.el.height;
+    h.classList.remove('pop');
+    void h.offsetWidth;
+    h.classList.add('pop');
   }
 
   toast(msg) {

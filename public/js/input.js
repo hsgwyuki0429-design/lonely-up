@@ -1,5 +1,7 @@
 // タッチ操作: 画面左半分 = バーチャルジョイスティック / 右半分 = カメラドラッグ
 // PC: WASD・矢印キー + Space、マウスドラッグでカメラ
+import { sfx } from './audio.js';
+
 export class Input {
   constructor(canvas) {
     this.move = { x: 0, y: 0 };
@@ -25,7 +27,10 @@ export class Input {
 
     this.jumpBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      if (this.enabled) this._jump = true;
+      if (this.enabled) {
+        this._jump = true;
+        sfx.tap(); // 押した瞬間に鳴らして操作の即時性を出す
+      }
     });
 
     window.addEventListener('keydown', (e) => {

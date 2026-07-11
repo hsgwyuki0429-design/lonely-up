@@ -1,5 +1,5 @@
 // タッチ操作: 画面左半分 = バーチャルジョイスティック / 右半分 = カメラドラッグ
-// PC: WASD・矢印キー + Space、マウスドラッグでカメラ
+// PC: WASD・矢印キー + Space、C で会釈、マウスドラッグでカメラ
 import { sfx } from './audio.js';
 
 export class Input {
@@ -7,11 +7,13 @@ export class Input {
     this.move = { x: 0, y: 0 };
     this.camDelta = { x: 0, y: 0 };
     this._jump = false;
+    this._bow = false;
     this.enabled = false;
 
     this.joyEl = document.getElementById('joy');
     this.knobEl = document.getElementById('joyKnob');
     this.jumpBtn = document.getElementById('btnJump');
+    this.bowBtn = document.getElementById('btnBow');
 
     this._joyId = null;
     this._camId = null;
@@ -33,6 +35,14 @@ export class Input {
       }
     });
 
+    this.bowBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (this.enabled) {
+        this._bow = true;
+        sfx.tap();
+      }
+    });
+
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this._keys.add(e.code);
@@ -40,6 +50,7 @@ export class Input {
         this._jump = true;
         e.preventDefault();
       }
+      if (e.code === 'KeyC' && this.enabled) this._bow = true;
     });
     window.addEventListener('keyup', (e) => this._keys.delete(e.code));
 
@@ -122,6 +133,17 @@ export class Input {
     const j = this._jump;
     this._jump = false;
     return j;
+  }
+
+  consumeBow() {
+    const b = this._bow;
+    this._bow = false;
+    return b;
+  }
+
+  // カメラを手動ドラッグ中か (自動追従の抑止に使う)
+  get camDragging() {
+    return this._camId !== null;
   }
 
   // カメラ回転量を取り出してリセット

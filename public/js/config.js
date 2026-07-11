@@ -16,8 +16,13 @@ export const CONFIG = {
   PLAYER_HALF_H: 0.75,
 
   CAM_DIST: 7.5,
+  CAM_FOV: 72,               // 視野角 (広めにして周囲の足場を見やすく)
   CAM_PITCH_MIN: -0.25,
   CAM_PITCH_MAX: 1.25,
+  CAM_FOLLOW: 2.4,           // スティックの進行方向へカメラが回り込む速さ
+  CAM_MANUAL_HOLD: 1.2,      // 手動カメラ操作後に自動追従を止める秒数
+
+  BOW_TIME: 0.9,             // 会釈 (おじぎ) の長さ (秒)
 
   KILL_Y: -14,               // ここまで落ちたらスタートに戻る
   NET_SEND_MS: 120,          // 位置ブロードキャスト間隔

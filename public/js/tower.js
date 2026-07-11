@@ -41,16 +41,18 @@ export function generateTower(seed = CONFIG.SEED) {
       hx = hz = 2.7;
       hy = 0.45;
       lastRestY = y;
-    } else if (roll < 0.13 && y > 25) {
+    } else if (roll < 0.16 && y > 8) {
+      // 動く足場: 序盤 (8m〜) から登場。低所では振幅・速度を控えめに
+      const ease = clamp((y - 8) / 40, 0, 1);
       kind = 'move';
       hx = hz = 1.15;
       move = {
         axis: rand() < 0.5 ? 'x' : 'z',
-        amp: 1.5 + rand() * 1.4,
-        speed: 0.6 + rand() * 0.7,
+        amp: 1.1 + rand() * (0.8 + 0.6 * ease),
+        speed: 0.5 + rand() * (0.4 + 0.3 * ease),
         phase: rand() * Math.PI * 2,
       };
-    } else if (roll < 0.3 && y > 12) {
+    } else if (roll < 0.34 && y > 5) {
       kind = 'beam';
     } else if (roll < 0.52) {
       kind = 'small';

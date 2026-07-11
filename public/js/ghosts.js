@@ -36,7 +36,7 @@ export class Ghosts {
   }
 
   receive(p) {
-    // p: {i,n,c,x,y,z,ry}
+    // p: {i,n,c,x,y,z,ry,b}  (b=1 なら会釈中)
     if (typeof p?.i !== 'string' || typeof p.x !== 'number') return;
     let g = this.map.get(p.i);
     if (!g) {
@@ -53,12 +53,18 @@ export class Ghosts {
         }
       });
       this.scene.add(group);
-      g = { group, target: new THREE.Vector3(p.x, p.y, p.z), yaw: p.ry || 0, last: 0 };
+      g = {
+        group, target: new THREE.Vector3(p.x, p.y, p.z),
+        yaw: p.ry || 0, last: 0, bowT: 0, lastBow: false,
+      };
       group.position.copy(g.target);
       this.map.set(p.i, g);
     }
     g.target.set(p.x, p.y, p.z);
     g.yaw = p.ry || 0;
+    // 会釈フラグの立ち上がりでおじぎモーションを再生
+    if (p.b && !g.lastBow) g.bowT = CONFIG.BOW_TIME;
+    g.lastBow = !!p.b;
     g.last = performance.now();
   }
 
@@ -82,6 +88,15 @@ export class Ghosts {
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
       g.group.rotation.y += d * k;
+
+      // 会釈モーション (自機と同じカーブ)
+      g.bowT = Math.max(g.bowT - dt, 0);
+      let tilt = 0;
+      if (g.bowT > 0) {
+        const p = 1 - g.bowT / CONFIG.BOW_TIME;
+        tilt = Math.sin(Math.min(p * 1.15, 1) * Math.PI) * 0.7;
+      }
+      g.group.rotation.x = tilt;
     }
   }
 

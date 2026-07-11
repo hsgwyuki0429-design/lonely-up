@@ -68,24 +68,22 @@ export class Net {
   }
 
   // 位置ブロードキャスト (スロットル付き)
-  sendPos(me, pos, yaw) {
+  sendPos(me, pos, yaw, bowing = false) {
     if (!this.channel || !this.connected) return;
     const now = performance.now();
     if (now - this._lastSend < CONFIG.NET_SEND_MS) return;
     this._lastSend = now;
-    this.channel.send({
-      type: 'broadcast',
-      event: 'pos',
-      payload: {
-        i: this.cid,
-        n: me.name,
-        c: me.color,
-        x: Math.round(pos.x * 100) / 100,
-        y: Math.round(pos.y * 100) / 100,
-        z: Math.round(pos.z * 100) / 100,
-        ry: Math.round(yaw * 100) / 100,
-      },
-    });
+    const payload = {
+      i: this.cid,
+      n: me.name,
+      c: me.color,
+      x: Math.round(pos.x * 100) / 100,
+      y: Math.round(pos.y * 100) / 100,
+      z: Math.round(pos.z * 100) / 100,
+      ry: Math.round(yaw * 100) / 100,
+    };
+    if (bowing) payload.b = 1; // 会釈中フラグ
+    this.channel.send({ type: 'broadcast', event: 'pos', payload });
   }
 
   // ===== 世界ランキング =====

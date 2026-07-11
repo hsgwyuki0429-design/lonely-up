@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e1526">
+<title>LONELY UP - ひたすら上へ</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗼</text></svg>">
+<link rel="stylesheet" href="/css/style.css">
+<script src="/env.js"></script>
+<script src="/vendor/supabase.js"></script>
+<script type="importmap">
+  { "imports": { "three": "/vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- ===== HUD ===== -->
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div class="stat">
+      <span class="label">高度</span>
+      <span id="height" class="value">0.0m</span>
+    </div>
+    <div class="stat">
+      <span class="label">ベスト</span>
+      <span id="best" class="value">0.0m</span>
+    </div>
+    <div class="stat">
+      <span class="label">タイム</span>
+      <span id="timer" class="value">0:00</span>
+    </div>
+    <div class="stat">
+      <span class="label">オンライン</span>
+      <span id="online" class="value">1</span>
+    </div>
+  </div>
+  <div id="topbtns">
+    <button id="btnRank" class="iconbtn" aria-label="ランキング">🏆</button>
+    <button id="btnRestart" class="iconbtn" aria-label="リスタート">↻</button>
+  </div>
+  <div id="joy"><div id="joyKnob"></div></div>
+  <button id="btnJump" aria-label="ジャンプ">JUMP</button>
+</div>
+
+<div id="toasts"></div>
+
+<!-- ===== タイトル ===== -->
+<div id="title" class="panel">
+  <h1>LONELY UP</h1>
+  <p class="tagline">ひたすら上へ。落ちたら、自分のせい。</p>
+  <input id="nameInput" type="text" maxlength="12" placeholder="なまえ (12文字まで)" autocomplete="off">
+  <button id="btnStart" class="primary">のぼる</button>
+  <div class="howto">
+    <div>🕹 左半分ドラッグ : 移動</div>
+    <div>👀 右半分ドラッグ : カメラ</div>
+    <div>🦘 JUMPボタン : ジャンプ</div>
+    <div class="pc">PC : WASD + Space / マウスでカメラ</div>
+  </div>
+  <div id="netStatus" class="netstatus">オフラインモード</div>
+</div>
+
+<!-- ===== ランキング ===== -->
+<div id="rankPanel" class="panel hidden">
+  <h2>🏆 世界ランキング</h2>
+  <div id="rankList" class="ranklist"><div class="rankrow">読み込み中...</div></div>
+  <button id="btnRankClose" class="primary">とじる</button>
+</div>
+
+<!-- ===== クリア ===== -->
+<div id="clearPanel" class="panel hidden">
+  <h2>🎉 登頂!!</h2>
+  <p id="clearTime" class="cleartime">0:00</p>
+  <p class="tagline">きみはもう、ひとりじゃない。</p>
+  <button id="btnClearRank" class="primary">ランキングを見る</button>
+  <button id="btnClearRestart" class="ghostbtn">もう一度のぼる</button>
+</div>
+
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "lonely-up",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LONELY UP - mobile-first vertical climbing game with world ranking & online play (Supabase + Render)",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/copy-vendor.mjs",
+    "postinstall": "node scripts/copy-vendor.mjs",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "express": "^4.19.2",
+    "three": "^0.160.1"
+  }
+}

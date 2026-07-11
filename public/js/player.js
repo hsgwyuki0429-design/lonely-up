@@ -6,6 +6,7 @@ const tmpBox = {};
 // 自機・ゴースト共通のアバター (オリジナルデザインの小型ロボ)
 export function buildAvatar(colorHex) {
   const g = new THREE.Group();
+  g.rotation.order = 'YXZ'; // ヨー (向き) の後にピッチ → お辞儀が常に「前傾」になる
   const body = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.36, 0.62, 6, 14),
     new THREE.MeshLambertMaterial({ color: colorHex })
@@ -236,14 +237,21 @@ export class Player {
       // 空中では速度に応じて縦に伸びる (負の squash = ストレッチ)
       squash -= THREE.MathUtils.clamp(Math.abs(this.vel.y) * 0.016, 0, 0.18);
     }
-    // 会釈: 前傾しながら少し縮こまる (下げて→戻すの1モーション)
+    // 会釈: 足元を支点に前へ倒れる (下げて→戻すの1モーション)
     let tilt = 0;
     if (this.bowT > 0) {
       const p = 1 - this.bowT / C.BOW_TIME;
-      tilt = Math.sin(Math.min(p * 1.15, 1) * Math.PI) * 0.7;
-      squash += tilt * 0.12;
+      tilt = Math.sin(Math.min(p * 1.15, 1) * Math.PI) * 0.75;
+      squash += tilt * 0.1;
     }
     this.mesh.position.copy(this.pos);
+    if (tilt > 0) {
+      // 体の中心を「足元から前傾した位置」へ移す = 足を残して上体だけ倒す
+      const hh = C.PLAYER_HALF_H;
+      this.mesh.position.x += Math.sin(this.yaw) * Math.sin(tilt) * hh;
+      this.mesh.position.z += Math.cos(this.yaw) * Math.sin(tilt) * hh;
+      this.mesh.position.y -= (1 - Math.cos(tilt)) * hh;
+    }
     this.mesh.rotation.y = this.yaw;
     this.mesh.rotation.x = tilt;
     this.mesh.scale.set(1 + squash * 0.6, 1 - squash, 1 + squash * 0.6);

@@ -19,7 +19,7 @@ export const CONFIG = {
   CAM_FOV: 72,               // 視野角 (広めにして周囲の足場を見やすく)
   CAM_PITCH_MIN: -0.25,
   CAM_PITCH_MAX: 1.25,
-  CAM_FOLLOW: 3.4,           // 進行方向 (体の後ろ側) へカメラが回り込む速さ
+  CAM_FOLLOW: 5.0,           // 体の真後ろへカメラが回り込む速さ (一人称と同じ向きの三人称)
   CAM_MANUAL_HOLD: 1.2,      // 手動カメラ操作後に自動追従を止める秒数
 
   BOW_TIME: 0.9,             // 会釈 (おじぎ) の長さ (秒)

@@ -55,6 +55,7 @@ export class Ghosts {
       this.scene.add(group);
       g = {
         group, target: new THREE.Vector3(p.x, p.y, p.z),
+        smooth: new THREE.Vector3(p.x, p.y, p.z), // 補間済みの素の位置 (お辞儀オフセットと分離)
         yaw: p.ry || 0, last: 0, bowT: 0, lastBow: false,
       };
       group.position.copy(g.target);
@@ -83,18 +84,26 @@ export class Ghosts {
         this.remove(id);
         continue;
       }
-      g.group.position.lerp(g.target, k);
+      g.smooth.lerp(g.target, k);
       let d = g.yaw - g.group.rotation.y;
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
       g.group.rotation.y += d * k;
 
-      // 会釈モーション (自機と同じカーブ)
+      // 会釈モーション (自機と同じ: 足元を支点に前傾)
       g.bowT = Math.max(g.bowT - dt, 0);
       let tilt = 0;
       if (g.bowT > 0) {
         const p = 1 - g.bowT / CONFIG.BOW_TIME;
-        tilt = Math.sin(Math.min(p * 1.15, 1) * Math.PI) * 0.7;
+        tilt = Math.sin(Math.min(p * 1.15, 1) * Math.PI) * 0.75;
+      }
+      g.group.position.copy(g.smooth);
+      if (tilt > 0) {
+        const hh = CONFIG.PLAYER_HALF_H;
+        const yaw = g.group.rotation.y;
+        g.group.position.x += Math.sin(yaw) * Math.sin(tilt) * hh;
+        g.group.position.z += Math.cos(yaw) * Math.sin(tilt) * hh;
+        g.group.position.y -= (1 - Math.cos(tilt)) * hh;
       }
       g.group.rotation.x = tilt;
     }

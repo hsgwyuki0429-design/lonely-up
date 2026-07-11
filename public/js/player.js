@@ -46,6 +46,7 @@ export class Player {
     this.jumpBuffer = 0;
     this.yaw = 0;
     this.squash = 0;               // 着地の潰れ演出
+    this.bowT = 0;                 // 会釈 (おじぎ) の残り時間
     this.maxY = 0;
     this.events = [];              // 1フレーム分の演出イベント (main が消費)
 
@@ -74,8 +75,13 @@ export class Player {
     this.vel.set(0, 0, 0);
     this.grounded = true;
     this.standing = null;
+    this.bowT = 0;
     this.maxY = 0;
     // this.events はここでは消さない (落下→リスポーン時に 'fell' が消えるため)
+  }
+
+  get bowing() {
+    return this.bowT > 0;
   }
 
   aabbOverlap(b) {
@@ -87,9 +93,16 @@ export class Player {
     );
   }
 
-  update(dt, input, camYaw, t, tPrev) {
+  update(dt, input, camYaw, t, tPrev, ghosts = null) {
     const C = CONFIG;
     const near = this.world.nearby(this.pos.y - 4, this.pos.y + 4, this._near);
+
+    // --- 会釈 (おじぎ): 地上でボタンを押すと数瞬おじぎする ---
+    this.bowT = Math.max(this.bowT - dt, 0);
+    if (input.consumeBow() && this.grounded && this.bowT <= 0) {
+      this.bowT = C.BOW_TIME;
+      this.events.push({ t: 'bow' });
+    }
 
     // --- 乗っている動く足場に運ばれる ---
     if (this.grounded && this.standing && this.standing.move) {
@@ -105,8 +118,9 @@ export class Player {
     const mz = fz * input.move.y + rz * input.move.x;
     const mag = Math.min(Math.hypot(mx, mz), 1);
     const accel = this.grounded ? C.GROUND_ACCEL : C.AIR_ACCEL;
-    const tx = mag > 0.001 ? (mx / Math.hypot(mx, mz)) * C.MOVE_SPEED * mag : 0;
-    const tz = mag > 0.001 ? (mz / Math.hypot(mx, mz)) * C.MOVE_SPEED * mag : 0;
+    const speed = C.MOVE_SPEED * (this.bowT > 0 ? 0.25 : 1); // おじぎ中はゆっくり
+    const tx = mag > 0.001 ? (mx / Math.hypot(mx, mz)) * speed * mag : 0;
+    const tz = mag > 0.001 ? (mz / Math.hypot(mx, mz)) * speed * mag : 0;
     this.vel.x += THREE.MathUtils.clamp(tx - this.vel.x, -accel * dt, accel * dt);
     this.vel.z += THREE.MathUtils.clamp(tz - this.vel.z, -accel * dt, accel * dt);
     if (mag > 0.05) {
@@ -127,6 +141,7 @@ export class Player {
       this.standing = null;
       this.coyote = 0;
       this.jumpBuffer = 0;
+      this.bowT = 0; // ジャンプでおじぎ解除
       this.squash = -0.18;
       this.events.push({ t: 'jump' });
     }
@@ -180,6 +195,9 @@ export class Player {
       this.vel.z = 0;
     }
 
+    // --- オンラインの他プレイヤーとの当たり判定 ---
+    if (ghosts) this.collideGhosts(ghosts);
+
     // --- 接地の継続チェック (足場の端から出たら落下) ---
     if (this.grounded && !landed) {
       let supported = false;
@@ -218,8 +236,16 @@ export class Player {
       // 空中では速度に応じて縦に伸びる (負の squash = ストレッチ)
       squash -= THREE.MathUtils.clamp(Math.abs(this.vel.y) * 0.016, 0, 0.18);
     }
+    // 会釈: 前傾しながら少し縮こまる (下げて→戻すの1モーション)
+    let tilt = 0;
+    if (this.bowT > 0) {
+      const p = 1 - this.bowT / C.BOW_TIME;
+      tilt = Math.sin(Math.min(p * 1.15, 1) * Math.PI) * 0.7;
+      squash += tilt * 0.12;
+    }
     this.mesh.position.copy(this.pos);
     this.mesh.rotation.y = this.yaw;
+    this.mesh.rotation.x = tilt;
     this.mesh.scale.set(1 + squash * 0.6, 1 - squash, 1 + squash * 0.6);
 
     const gy = this.world.groundTopBelow(this.pos.x, this.pos.z, this.pos.y - C.PLAYER_HALF_H + 0.1, t, tmpBox);
@@ -231,6 +257,41 @@ export class Player {
       this.shadow.scale.setScalar(0.6 + 0.4 * fall);
     } else {
       this.shadow.visible = false;
+    }
+  }
+
+  // オンラインの他プレイヤーと衝突: 横からはすり抜けずに押し出され、
+  // 上から落ちると頭を踏んで小さく跳ねる
+  collideGhosts(ghosts) {
+    const C = CONFIG;
+    const rr = C.PLAYER_R * 2;
+    const hh = C.PLAYER_HALF_H;
+    for (const g of ghosts.map.values()) {
+      const gp = g.group.position;
+      if (Math.abs(this.pos.y - gp.y) > hh * 2) continue;
+      const dx = this.pos.x - gp.x;
+      const dz = this.pos.z - gp.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > rr) continue;
+      if (this.vel.y < -1 && this.pos.y - hh > gp.y + hh * 0.4) {
+        // 頭の上に着地 → 踏み台ジャンプ
+        this.pos.y = gp.y + hh * 2 + 0.01;
+        this.vel.y = C.JUMP_VEL * 0.8;
+        this.grounded = false;
+        this.standing = null;
+        this.events.push({ t: 'bounce' });
+      } else {
+        const nx = dist > 0.001 ? dx / dist : Math.sin(this.yaw);
+        const nz = dist > 0.001 ? dz / dist : Math.cos(this.yaw);
+        this.pos.x = gp.x + nx * rr;
+        this.pos.z = gp.z + nz * rr;
+        // 相手に向かう速度成分だけ打ち消す
+        const vn = this.vel.x * nx + this.vel.z * nz;
+        if (vn < 0) {
+          this.vel.x -= vn * nx;
+          this.vel.z -= vn * nz;
+        }
+      }
     }
   }
 

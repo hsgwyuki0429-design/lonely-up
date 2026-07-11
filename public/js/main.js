@@ -20,7 +20,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(CONFIG.CAM_FOV, window.innerWidth / window.innerHeight, 0.1, 500);
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x556688, 1.0));
 const sun = new THREE.DirectionalLight(0xfff2dd, 1.2);
@@ -163,6 +163,7 @@ document.addEventListener('visibilitychange', () => {
 // ================== カメラ ==================
 let camYaw = Math.PI;
 let camPitch = 0.35;
+let camManualT = 0; // 手動カメラ操作の余韻 (この間は自動追従しない)
 const camTarget = new THREE.Vector3();
 const camPos = new THREE.Vector3();
 
@@ -174,9 +175,21 @@ function updateCamera(dt) {
     return;
   }
   const d = input.takeCamDelta();
+  if (d.x || d.y) camManualT = CONFIG.CAM_MANUAL_HOLD;
   camYaw -= d.x * 0.0055;
   camPitch = THREE.MathUtils.clamp(
     camPitch + d.y * 0.005, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
+
+  // スティックで進んだ方向へカメラが回り込む (手動操作の直後は邪魔しない)
+  camManualT = Math.max(camManualT - dt, 0);
+  const moveMag = Math.min(Math.hypot(input.move.x, input.move.y), 1);
+  if (camManualT <= 0 && !input.camDragging && moveMag > 0.2) {
+    const target = player.yaw + Math.PI; // プレイヤーの背中側へ回る
+    let diff = target - camYaw;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    camYaw += diff * Math.min(dt * CONFIG.CAM_FOLLOW * moveMag, 1);
+  }
 
   const dist = CONFIG.CAM_DIST;
   const ch = Math.cos(camPitch) * dist;
@@ -217,7 +230,7 @@ function frame(now) {
       acc += dt;
       let steps = 0;
       while (acc >= FIXED && steps < 4) {
-        player.update(FIXED, input, camYaw, t, t - FIXED);
+        player.update(FIXED, input, camYaw, t, t - FIXED, ghosts);
         acc -= FIXED;
         steps++;
       }
@@ -260,6 +273,16 @@ function frame(now) {
             ui.showCombo(combo);
           }
         }
+      } else if (ev.t === 'bounce') {
+        // 他プレイヤーの頭を踏んで跳ねた
+        sfx.jump(1.35);
+        fx.burst(player.pos.x, feetY, player.pos.z, {
+          count: 10, color: 0xffe08a, speed: 2, up: 1.2,
+          gravity: 4, life: 0.4, spread: 0.3,
+        });
+        fx.vibrate(12);
+      } else if (ev.t === 'bow') {
+        sfx.tap();
       } else if (ev.t === 'fell') {
         sfx.fall();
         ui.toast('落ちた……');
@@ -328,7 +351,7 @@ function frame(now) {
       net.online
     );
 
-    net.sendPos(me, player.pos, player.yaw);
+    net.sendPos(me, player.pos, player.yaw, player.bowing);
     net.maybeSyncScore(me.name, allTimeBest, bestClearMs);
   } else {
     // タイトル画面: ゆっくり周回するカメラ

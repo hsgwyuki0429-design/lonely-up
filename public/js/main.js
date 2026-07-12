@@ -49,6 +49,20 @@ const me = {
 localStorage.setItem(STORAGE.COLOR, String(me.color));
 player.setColor(PLAYER_COLORS[me.color % PLAYER_COLORS.length]);
 
+// ================== 設定: ジャイロ感度 (1〜10倍) ==================
+// スライダーで即時反映。onGyro が毎回 CONFIG.GYRO_SENS を読むのでプレイ中でも効く
+const gyroSlider = document.getElementById('gyroSens');
+const gyroSensVal = document.getElementById('gyroSensVal');
+function applyGyroSens(v) {
+  const s = Math.min(10, Math.max(1, Math.round(Number(v) || CONFIG.GYRO_SENS)));
+  CONFIG.GYRO_SENS = s;
+  gyroSlider.value = String(s);
+  gyroSensVal.textContent = `×${s}`;
+  localStorage.setItem(STORAGE.GYRO, String(s));
+}
+applyGyroSens(localStorage.getItem(STORAGE.GYRO) ?? CONFIG.GYRO_SENS);
+gyroSlider.addEventListener('input', (e) => applyGyroSens(e.target.value));
+
 let allTimeBest = Number(localStorage.getItem(STORAGE.BEST) || 0);
 let bestClearMs = localStorage.getItem(STORAGE.CLEAR_MS)
   ? Number(localStorage.getItem(STORAGE.CLEAR_MS))

@@ -39,6 +39,7 @@ export const STORAGE = {
   BEST: 'lonelyup_best',
   CLEAR_MS: 'lonelyup_clear_ms',
   COLOR: 'lonelyup_color',
+  GYRO: 'lonelyup_gyro_sens',
 };
 
 // プレイヤーカラー候補

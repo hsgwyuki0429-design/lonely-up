@@ -1,6 +1,6 @@
 // アプリのバージョン。アプデのたびに 0.1 ずつ上げる (package.json と sw.js の CACHE も揃える)。
 // タイトル画面に表示し、デプロイが反映されたかを目視確認できるようにしている。
-export const VERSION = '1.1';
+export const VERSION = '1.2';
 
 // 全クライアント共通の定数。SEED を変えると塔の形が変わる
 // (全員同じ塔を登ることでランキングが公平になる)。
@@ -27,6 +27,7 @@ export const CONFIG = {
   CAM_FOLLOW: 2.0,           // 前進中にカメラが背後へゆるく回り込む速さ (横移動では回さない)
   CAM_MANUAL_HOLD: 1.2,      // 手動カメラ操作後に自動追従を止める秒数
   GYRO_SENS: 2,              // ジャイロ視点の左右 (ヨー) 感度倍率。縦 (ピッチ) は常に1倍固定
+  GYRO_INVERT_X: false,      // ジャイロの左右を反転するか (タイトルのトグルで切り替え)
   GYRO_DEADZONE: 0.002,      // 1イベントあたりの微小な揺れ (rad) を無視。静止時の自動追従を妨げないため
 
   BOW_TIME: 0.9,             // 会釈 (おじぎ) の長さ (秒)
@@ -44,6 +45,7 @@ export const STORAGE = {
   CLEAR_MS: 'lonelyup_clear_ms',
   COLOR: 'lonelyup_color',
   GYRO: 'lonelyup_gyro_sens',
+  GYRO_INVERT: 'lonelyup_gyro_invert',
 };
 
 // プレイヤーカラー候補

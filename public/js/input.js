@@ -233,9 +233,10 @@ export class Input {
     // 微小な手ブレは無視 (静止中に自動追従カメラを止めてしまわないように)
     const dz = CONFIG.GYRO_DEADZONE;
     if (Math.abs(dy) < dz && Math.abs(dp) < dz) return;
-    // 横 (ヨー): 感度スライダー (GYRO_SENS) を適用。
+    // 横 (ヨー): 感度スライダー (GYRO_SENS) を適用。左右反転トグルで符号を切替。
     // 縦 (ピッチ): 向きはそのまま、感度は常に1倍で固定 (スライダー非対応)。
-    this.gyroDelta.yaw += dy * CONFIG.GYRO_SENS;
+    const sx = CONFIG.GYRO_INVERT_X ? -1 : 1;
+    this.gyroDelta.yaw += sx * dy * CONFIG.GYRO_SENS;
     this.gyroDelta.pitch += dp;
   }
 }

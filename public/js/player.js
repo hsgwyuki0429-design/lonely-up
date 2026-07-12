@@ -189,6 +189,7 @@ export class Player {
     }
 
     // --- 水平移動 (軸ごとに解決) ---
+    let wallTop = null; // 横からぶつかったブロックの上面 (片手モードの自動ジャンプ判定に使う)
     this.pos.x += this.vel.x * dt;
     for (const p of near) {
       const b = this.world.aabb(p, t, tmpBox);
@@ -197,6 +198,7 @@ export class Player {
       if (this.vel.x > 0) this.pos.x = b.minX - C.PLAYER_R;
       else if (this.vel.x < 0) this.pos.x = b.maxX + C.PLAYER_R;
       this.vel.x = 0;
+      wallTop = Math.max(wallTop ?? -Infinity, b.maxY);
     }
     this.pos.z += this.vel.z * dt;
     for (const p of near) {
@@ -206,6 +208,19 @@ export class Player {
       if (this.vel.z > 0) this.pos.z = b.minZ - CONFIG.PLAYER_R;
       else if (this.vel.z < 0) this.pos.z = b.maxZ + CONFIG.PLAYER_R;
       this.vel.z = 0;
+      wallTop = Math.max(wallTop ?? -Infinity, b.maxY);
+    }
+
+    // 片手モード: 足場に立ったまま隣のブロックに走り込んで押し付けられたら自動ジャンプ
+    // (二つのブロックに触れた状態)。次の足場がすぐ隣にあると端まで行けず、
+    // 端の自動ジャンプが発動しないため。ジャンプで届く高さの相手にだけ発動する
+    if (
+      CONFIG.ONE_HAND && this.grounded && wallTop !== null &&
+      mag > C.ONE_HAND_AUTOJUMP_MAG
+    ) {
+      const rise = wallTop - (this.pos.y - C.PLAYER_HALF_H);
+      const jumpH = (C.JUMP_VEL * C.JUMP_VEL) / (2 * C.GRAVITY); // 最大ジャンプ高 ≈ 2.09m
+      if (rise > 0.2 && rise < jumpH) this.jumpBuffer = C.JUMP_BUFFER;
     }
 
     // --- オンラインの他プレイヤーとの当たり判定 ---

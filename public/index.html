@@ -65,13 +65,20 @@
   <button id="btnStart" class="primary">のぼる</button>
   <div class="howto">
     <div>🕹 左半分ドラッグ : 移動</div>
-    <div>👀 右半分 : カメラ (押してる間ジャイロ有効)</div>
+    <div>👀 右半分ドラッグ : カメラ</div>
     <div>🦘 JUMPボタン : ジャンプ</div>
     <div>🙇 おじぎボタン : 会釈 (みんなに見える)</div>
     <div class="pc">PC : WASD + Space / C で会釈 / マウスでカメラ</div>
   </div>
   <div class="setting">
-    <label for="gyroSens">📱 ジャイロ感度 (左右) <span id="gyroSensVal">×2</span></label>
+    <label class="selrow" for="gyroMode">📱 ジャイロ視点
+      <select id="gyroMode">
+        <option value="always">常時ON</option>
+        <option value="hold">右半分を押してる間</option>
+        <option value="air">ジャンプで空中の間</option>
+      </select>
+    </label>
+    <label for="gyroSens">ジャイロ感度 (左右) <span id="gyroSensVal">×2</span></label>
     <input id="gyroSens" type="range" min="1" max="10" step="1" value="2">
     <label class="checkrow"><input id="gyroInvert" type="checkbox"> ジャイロの左右を反転する</label>
   </div>

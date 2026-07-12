@@ -73,6 +73,17 @@ function applyGyroInvert(on) {
 applyGyroInvert(localStorage.getItem(STORAGE.GYRO_INVERT) === '1');
 gyroInvert.addEventListener('change', (e) => applyGyroInvert(e.target.checked));
 
+// ジャイロの発動条件モード (常時 / 右半分ホールド / 空中のみ)
+const gyroMode = document.getElementById('gyroMode');
+function applyGyroMode(m) {
+  const v = ['always', 'hold', 'air'].includes(m) ? m : 'hold';
+  CONFIG.GYRO_MODE = v;
+  gyroMode.value = v;
+  localStorage.setItem(STORAGE.GYRO_MODE, v);
+}
+applyGyroMode(localStorage.getItem(STORAGE.GYRO_MODE) ?? CONFIG.GYRO_MODE);
+gyroMode.addEventListener('change', (e) => applyGyroMode(e.target.value));
+
 // バージョン表示 (デプロイ反映の目視確認用)
 document.getElementById('appVer').textContent = `v${VERSION}`;
 
@@ -285,6 +296,7 @@ function frame(now) {
 
   if (state === 'play' || state === 'clear') {
     input.poll();
+    input.airborne = !player.grounded; // 'air' モードのジャイロ判定に使う
     frozen = fx.tickFreeze(dt);
     if (!frozen) {
       acc += dt;

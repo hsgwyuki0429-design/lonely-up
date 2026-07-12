@@ -26,6 +26,7 @@ export class Input {
     // ジャイロ (端末の向き) でカメラを動かす。感度は CONFIG.GYRO_SENS 倍。
     // 端末の姿勢をワールド座標系に変換し、その視線ヨー/ピッチの差分をカメラへ渡す
     this.gyroDelta = { yaw: 0, pitch: 0 };
+    this.airborne = false; // 自機が空中にいるか (main が毎フレーム更新。'air' モードで参照)
     this._gyroOn = false;
     this._gyroHasPrev = false;
     this._gyroYaw = 0;
@@ -230,11 +231,16 @@ export class Input {
     this._gyroYaw = yaw;
     this._gyroPitch = pitch;
 
-    // 画面右半分を押している間だけジャイロで視点を動かす。
-    // 基準 (prev) は上で常に更新済みなので、押し直した瞬間に視点が飛ばない。
-    // ジャンプ/会釈ボタンは別 DOM 要素で canvas の onDown を発火せず camId を作らないため、
-    // それらを押している時はジャイロが効かない (＝ジャンプ押下は除外される)。
-    if (this._camId === null) return;
+    // ジャイロの発動条件 (タイトルで選択)。基準 (prev) は上で常に更新済みなので、
+    // どのモードでも「発動した瞬間に視点が飛ぶ」ことはない。
+    //   always: 常時
+    //   hold  : 画面右半分を押している間 (ジャンプ/会釈ボタンは別要素で camId を作らず除外される)
+    //   air   : 自機が空中にいる間
+    const mode = CONFIG.GYRO_MODE;
+    const active = mode === 'always' ? true
+      : mode === 'air' ? this.airborne
+      : this._camId !== null;
+    if (!active) return;
 
     // 微小な手ブレは無視 (静止中に自動追従カメラを止めてしまわないように)
     const dz = CONFIG.GYRO_DEADZONE;

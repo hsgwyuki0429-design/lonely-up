@@ -1,6 +1,6 @@
 // PWA 用サービスワーカー: ネットワーク優先 + キャッシュフォールバック。
 // オンライン時は常に最新を取りに行き、圏外でも一度遊んだ端末なら起動できる。
-const CACHE = 'lonely-up-v1.4'; // アプデのたびに上げる (旧キャッシュは activate で破棄される)
+const CACHE = 'lonely-up-v1.5'; // アプデのたびに上げる (旧キャッシュは activate で破棄される)
 const CORE = [
   '/',
   '/css/style.css',

@@ -49,6 +49,20 @@ const me = {
 localStorage.setItem(STORAGE.COLOR, String(me.color));
 player.setColor(PLAYER_COLORS[me.color % PLAYER_COLORS.length]);
 
+// ================== 設定: ジャイロ感度 (1〜10倍) ==================
+// スライダーで即時反映。onGyro が毎回 CONFIG.GYRO_SENS を読むのでプレイ中でも効く
+const gyroSlider = document.getElementById('gyroSens');
+const gyroSensVal = document.getElementById('gyroSensVal');
+function applyGyroSens(v) {
+  const s = Math.min(10, Math.max(1, Math.round(Number(v) || CONFIG.GYRO_SENS)));
+  CONFIG.GYRO_SENS = s;
+  gyroSlider.value = String(s);
+  gyroSensVal.textContent = `×${s}`;
+  localStorage.setItem(STORAGE.GYRO, String(s));
+}
+applyGyroSens(localStorage.getItem(STORAGE.GYRO) ?? CONFIG.GYRO_SENS);
+gyroSlider.addEventListener('input', (e) => applyGyroSens(e.target.value));
+
 let allTimeBest = Number(localStorage.getItem(STORAGE.BEST) || 0);
 let bestClearMs = localStorage.getItem(STORAGE.CLEAR_MS)
   ? Number(localStorage.getItem(STORAGE.CLEAR_MS))
@@ -93,6 +107,7 @@ function startRun() {
   me.name = (ui.el.nameInput.value || me.name).trim().slice(0, 12) || 'ゲスト';
   localStorage.setItem(STORAGE.NAME, me.name);
   sfx.unlock();
+  input.enableGyro(); // タップ (ユーザー操作) の流れで呼び、iOS の許可ダイアログを出す
   player.spawn();
   camYaw = Math.PI;
   camPitch = 0.35;
@@ -185,6 +200,15 @@ function updateCamera(dt) {
   camYaw -= d.x * 0.0055;
   camPitch = THREE.MathUtils.clamp(
     camPitch + d.y * 0.005, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
+
+  // スマホのジャイロ: 端末を振った分だけ視点を回す (指ドラッグと同様に自動追従を一時停止)
+  const gd = input.takeGyroDelta();
+  if (gd.yaw || gd.pitch) {
+    camManualT = CONFIG.CAM_MANUAL_HOLD;
+    camYaw += gd.yaw;
+    camPitch = THREE.MathUtils.clamp(
+      camPitch - gd.pitch, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
+  }
 
   // カメラの自動回り込みは「前へ進んでいる時」だけゆるく効かせる。
   // 横移動でカメラが回ると移動方向 (カメラ基準) が流されて円を描いてしまうため、

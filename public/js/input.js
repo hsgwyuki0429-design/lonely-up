@@ -23,6 +23,14 @@ export class Input {
     this._keys = new Set();
     this.JOY_R = 48;
 
+    // ジャイロ (端末の向き) でカメラを動かす。感度は CONFIG.GYRO_SENS 倍。
+    // 端末の姿勢をワールド座標系に変換し、その視線ヨー/ピッチの差分をカメラへ渡す
+    this.gyroDelta = { yaw: 0, pitch: 0 };
+    this._gyroOn = false;
+    this._gyroHasPrev = false;
+    this._gyroYaw = 0;
+    this._gyroPitch = 0;
+
     canvas.addEventListener('pointerdown', (e) => this.onDown(e));
     window.addEventListener('pointermove', (e) => this.onMove(e));
     window.addEventListener('pointerup', (e) => this.onUp(e));
@@ -164,5 +172,69 @@ export class Input {
     this.camDelta.x = 0;
     this.camDelta.y = 0;
     return d;
+  }
+
+  // ジャイロによるカメラ回転量を取り出してリセット
+  takeGyroDelta() {
+    const d = { yaw: this.gyroDelta.yaw, pitch: this.gyroDelta.pitch };
+    this.gyroDelta.yaw = 0;
+    this.gyroDelta.pitch = 0;
+    return d;
+  }
+
+  // ジャイロを有効化。iOS 13+ は要許可 (ユーザー操作＝ゲーム開始のタップから呼ぶこと)。
+  // 非対応端末・不許可でも例外を投げず false を返すだけ
+  enableGyro() {
+    if (this._gyroOn) return Promise.resolve(true);
+    const start = () => {
+      window.addEventListener('deviceorientation', (e) => this.onGyro(e));
+      this._gyroOn = true;
+    };
+    const DOE = window.DeviceOrientationEvent;
+    if (!DOE) return Promise.resolve(false);
+    if (typeof DOE.requestPermission === 'function') {
+      return DOE.requestPermission()
+        .then((r) => { if (r === 'granted') { start(); return true; } return false; })
+        .catch(() => false);
+    }
+    start();
+    return Promise.resolve(true);
+  }
+
+  onGyro(e) {
+    if (!this.enabled || e.alpha == null) return;
+    const DEG = Math.PI / 180;
+    const a = e.alpha * DEG, b = e.beta * DEG, g = e.gamma * DEG;
+    const cA = Math.cos(a), sA = Math.sin(a);
+    const cB = Math.cos(b), sB = Math.sin(b);
+    const cG = Math.cos(g), sG = Math.sin(g);
+    // 端末→ワールドの回転 (W3C: R = Rz(alpha)·Rx(beta)·Ry(gamma))。
+    // 画面の裏側 (端末 -z) が向くワールド方向 = カメラの視線とみなす。
+    // ワールド座標で扱うので端末を縦横どちら向きに持っても破綻しない
+    const fx = -(cG * sA * sB + cA * sG);
+    const fy = -(sA * sG - cA * cG * sB);
+    const fz = -(cB * cG); // ワールド上向き成分
+    const yaw = Math.atan2(fx, fy);
+    const pitch = Math.atan2(fz, Math.hypot(fx, fy));
+
+    if (!this._gyroHasPrev) {
+      this._gyroYaw = yaw;
+      this._gyroPitch = pitch;
+      this._gyroHasPrev = true;
+      return;
+    }
+    let dy = yaw - this._gyroYaw;
+    if (dy > Math.PI) dy -= Math.PI * 2;
+    else if (dy < -Math.PI) dy += Math.PI * 2;
+    const dp = pitch - this._gyroPitch;
+    this._gyroYaw = yaw;
+    this._gyroPitch = pitch;
+
+    // 微小な手ブレは無視 (静止中に自動追従カメラを止めてしまわないように)
+    const dz = CONFIG.GYRO_DEADZONE;
+    if (Math.abs(dy) < dz && Math.abs(dp) < dz) return;
+    const s = CONFIG.GYRO_SENS;
+    this.gyroDelta.yaw += dy * s;
+    this.gyroDelta.pitch += dp * s;
   }
 }

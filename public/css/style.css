@@ -295,6 +295,21 @@ html, body {
   cursor: pointer;
 }
 .checkrow input { width: 16px; height: 16px; accent-color: #ff9f43; }
+.selrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.selrow select {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.selrow select option { color: #000; }
 
 /* バージョン表示: 画面左下に常時表示 (デプロイ反映の目視確認用) */
 .appver {

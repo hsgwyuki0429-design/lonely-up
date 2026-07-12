@@ -45,6 +45,7 @@ export class Player {
     this.standing = null;          // 乗っている足場
     this.coyote = 0;
     this.jumpBuffer = 0;
+    this.runT = 0;                 // 直近でスティックを倒して走っていた残り猶予 (端の自動ジャンプ用)
     this.yaw = 0;
     this.squash = 0;               // 着地の潰れ演出
     this.bowT = 0;                 // 会釈 (おじぎ) の残り時間
@@ -139,13 +140,16 @@ export class Player {
     this.coyote = this.grounded ? C.COYOTE_TIME : Math.max(this.coyote - dt, 0);
     this.jumpBuffer = Math.max(this.jumpBuffer - dt, 0);
     if (input.consumeJump()) this.jumpBuffer = C.JUMP_BUFFER;
-    // スティックを大きく倒して走ったまま足場の端から出たら自動ジャンプ。
-    // 片手ではスティックを倒しながらジャンプ操作ができないため、走りジャンプを自動化する。
-    // コヨーテ時間内 (端から出た直後) かつ下降開始前のみ。ゆっくり歩けば発動せずそのまま落ちられる
-    if (
-      !this.grounded && this.coyote > 0 &&
-      this.vel.y <= 0 && mag > C.ONE_HAND_AUTOJUMP_MAG
-    ) {
+    // 直近でスティックを倒して走っていたか。倒している間は満タン、離しても少しの間だけ残る。
+    // 「端でジャンプしようとスティックを離した瞬間に足場から出た」ときの空振りを防ぐための猶予。
+    if (mag > C.ONE_HAND_AUTOJUMP_MAG) this.runT = C.ONE_HAND_AUTOJUMP_GRACE;
+    else this.runT = Math.max(this.runT - dt, 0);
+
+    // 走ったまま足場の端から出たら自動ジャンプ (片手ではスティックを倒しながら
+    // ジャンプできないため走りジャンプを自動化)。コヨーテ時間内かつ下降開始前のみ。
+    // 直近まで走っていれば (runT>0)、端でスティックを離した直後に飛び出しても空振りしない。
+    // 止まって/ゆっくり歩いて端に立つだけなら発動せず、そのまま下の足場へ降りられる。
+    if (!this.grounded && this.coyote > 0 && this.vel.y <= 0 && this.runT > 0) {
       this.jumpBuffer = C.JUMP_BUFFER;
     }
     if (this.jumpBuffer > 0 && this.coyote > 0) {

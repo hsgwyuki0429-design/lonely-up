@@ -63,6 +63,16 @@ function applyGyroSens(v) {
 applyGyroSens(localStorage.getItem(STORAGE.GYRO) ?? CONFIG.GYRO_SENS);
 gyroSlider.addEventListener('input', (e) => applyGyroSens(e.target.value));
 
+// ジャイロ左右反転トグル (即時反映・保存)
+const gyroInvert = document.getElementById('gyroInvert');
+function applyGyroInvert(on) {
+  CONFIG.GYRO_INVERT_X = !!on;
+  gyroInvert.checked = !!on;
+  localStorage.setItem(STORAGE.GYRO_INVERT, on ? '1' : '0');
+}
+applyGyroInvert(localStorage.getItem(STORAGE.GYRO_INVERT) === '1');
+gyroInvert.addEventListener('change', (e) => applyGyroInvert(e.target.checked));
+
 // バージョン表示 (デプロイ反映の目視確認用)
 document.getElementById('appVer').textContent = `v${VERSION}`;
 

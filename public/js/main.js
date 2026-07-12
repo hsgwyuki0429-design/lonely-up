@@ -150,6 +150,7 @@ function startRun() {
   player.spawn();
   camYaw = Math.PI;
   camPitch = 0.35;
+  camPullT = 0;
   runStart = performance.now();
   nextMilestone = 50;
   clearMsThisRun = 0;
@@ -236,8 +237,25 @@ document.addEventListener('visibilitychange', () => {
 let camYaw = Math.PI;
 let camPitch = 0.35;
 let camManualT = 0;      // 手動カメラ操作の余韻 (この間は自動追従しない)
+let camPullYaw = 0;      // 片手モード: 着地時に「次の足場」の方向へ視点を引っ張る目標ヨー
+let camPullT = 0;        // 引っ張りの残り時間 (秒)
 const camTarget = new THREE.Vector3();
 const camPos = new THREE.Vector3();
+
+// 片手モード: 着地した足場の「次の足場」(生成順 = 登頂ルート順) の方向へ視点を向ける。
+// カメラを操作する指がないので、どこへ行けばいいかをカメラが教えてくれるようにする
+function pullCamToNext() {
+  const i = world.platforms.indexOf(player.standing);
+  const next = i >= 0 ? world.platforms[i + 1] : null;
+  if (!next) return;
+  const t = Date.now() / 1000;
+  const o = world.offset(next, t);
+  const nx = next.x + (next.move?.axis === 'x' ? o : 0) - player.pos.x;
+  const nz = next.z + (next.move?.axis === 'z' ? o : 0) - player.pos.z;
+  if (Math.hypot(nx, nz) < 0.5) return; // ほぼ真上なら向きは変えない
+  camPullYaw = Math.atan2(-nx, -nz); // カメラが自機の背後に回り、視線が次の足場を向くヨー
+  camPullT = CONFIG.ONE_HAND_PULL_TIME;
+}
 
 function wrapAngle(a) {
   while (a > Math.PI) a -= Math.PI * 2;
@@ -275,6 +293,18 @@ function updateCamera(dt) {
       PEEK_BASE + input.gyroPitchOffset, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
   }
 
+  // 片手モード: 着地直後は「次の足場」の方向へ視点をなめらかに引っ張る。
+  // 手動でカメラを操作したら即中断する (プレイヤーの意思を優先)
+  if (camPullT > 0) {
+    if (d.x || d.y || input.camDragging) {
+      camPullT = 0;
+    } else {
+      camPullT -= dt;
+      const diff = wrapAngle(camPullYaw - camYaw);
+      camYaw += diff * Math.min(dt * CONFIG.ONE_HAND_PULL, 1);
+    }
+  }
+
   // カメラの自動回り込みは「前へ進んでいる時」だけゆるく効かせる。
   // 横移動でカメラが回ると移動方向 (カメラ基準) が流されて円を描いてしまうため、
   // 横・後ろ入力ではカメラを固定する (最近の3Dゲームのレイジーカメラと同じ挙動)
@@ -285,7 +315,7 @@ function updateCamera(dt) {
   const follow = CONFIG.ONE_HAND
     ? Math.max(fwdRatio, moveMag * CONFIG.ONE_HAND_FOLLOW)
     : fwdRatio;
-  if (camManualT <= 0 && !input.camDragging && moveMag > 0.1 && follow > 0) {
+  if (camPullT <= 0 && camManualT <= 0 && !input.camDragging && moveMag > 0.1 && follow > 0) {
     const diff = wrapAngle(player.yaw + Math.PI - camYaw);
     camYaw += diff * Math.min(dt * CONFIG.CAM_FOLLOW * follow, 1);
   }
@@ -364,6 +394,8 @@ function frame(now) {
           fx.shake(0.2 + k * 0.3); // 強い着地は画面も揺れる
           fx.vibrate(15);
         }
+        // 片手モード: 着地したら次の足場の方向へ視点を引っ張る
+        if (CONFIG.ONE_HAND) pullCamToNext();
         // コンボ: 今までより高い足場に乗れたら加算
         if (ev.topY > comboTopY + 0.3) {
           combo++;

@@ -233,8 +233,9 @@ export class Input {
     // 微小な手ブレは無視 (静止中に自動追従カメラを止めてしまわないように)
     const dz = CONFIG.GYRO_DEADZONE;
     if (Math.abs(dy) < dz && Math.abs(dp) < dz) return;
-    const s = CONFIG.GYRO_SENS;
-    this.gyroDelta.yaw += dy * s;
-    this.gyroDelta.pitch += dp * s;
+    // 横 (ヨー): 向きを反転し、感度スライダー (GYRO_SENS) を適用。
+    // 縦 (ピッチ): 向きはそのまま、感度は常に1倍で固定 (スライダー非対応)。
+    this.gyroDelta.yaw += -dy * CONFIG.GYRO_SENS;
+    this.gyroDelta.pitch += dp;
   }
 }

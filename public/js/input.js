@@ -1,4 +1,5 @@
 // タッチ操作: 画面左半分 = バーチャルジョイスティック / 右半分 = カメラドラッグ
+// 片手モード (CONFIG.ONE_HAND): 画面全体がスティック / 短いタップ = ジャンプ / 2本目のタッチも即ジャンプ
 // PC: WASD・矢印キー + Space、C で会釈、マウスドラッグでカメラ
 import { sfx } from './audio.js';
 import { CONFIG } from './config.js';
@@ -22,6 +23,13 @@ export class Input {
     this._camLast = { x: 0, y: 0 };
     this._keys = new Set();
     this.JOY_R = 48;
+
+    // 片手モードのタップ判定用 (押した時刻・位置と、そこからの最大移動距離)
+    this._joyStart = { t: 0, x: 0, y: 0 };
+    this._joyMaxDist = 0;
+    this._joyShown = false; // 片手モードではドラッグと確定するまでスティックを表示しない (タップ時のちらつき防止)
+    this.TAP_MS = 250;      // これより短いタッチはタップ (=ジャンプ) 候補
+    this.TAP_SLOP = 12;     // タッチ開始からこの距離 (px) 以上動いたらドラッグ扱い
 
     // ジャイロ (端末の向き) でカメラを動かす。感度は CONFIG.GYRO_SENS 倍。
     // 端末の姿勢をワールド座標系に変換し、その視線ヨー/ピッチの差分をカメラへ渡す
@@ -75,21 +83,48 @@ export class Input {
     if (!this.enabled) return;
     e.preventDefault();
     const isTouch = e.pointerType === 'touch';
+    if (isTouch && CONFIG.ONE_HAND) {
+      // 片手モード: 最初のタッチは画面のどこでもスティック。2本目のタッチは即ジャンプ
+      if (this._joyId === null) {
+        this.startJoy(e, false);
+      } else {
+        this._jump = true;
+        sfx.tap();
+      }
+      return;
+    }
     if (isTouch && e.clientX < window.innerWidth / 2 && this._joyId === null) {
-      this._joyId = e.pointerId;
-      this._joyOrigin = { x: e.clientX, y: e.clientY };
-      this.joyEl.style.display = 'block';
-      this.joyEl.style.left = `${e.clientX - 60}px`;
-      this.joyEl.style.top = `${e.clientY - 60}px`;
-      this.setKnob(0, 0);
+      this.startJoy(e, true);
     } else if (this._camId === null) {
       this._camId = e.pointerId;
       this._camLast = { x: e.clientX, y: e.clientY };
     }
   }
 
+  // スティック操作の開始。show=false ならドラッグと確定するまで表示を遅らせる
+  startJoy(e, show) {
+    this._joyId = e.pointerId;
+    this._joyOrigin = { x: e.clientX, y: e.clientY };
+    this._joyStart = { t: performance.now(), x: e.clientX, y: e.clientY };
+    this._joyMaxDist = 0;
+    this._joyShown = show;
+    this.joyEl.style.left = `${e.clientX - 60}px`;
+    this.joyEl.style.top = `${e.clientY - 60}px`;
+    this.joyEl.style.display = show ? 'block' : 'none';
+    this.setKnob(0, 0);
+  }
+
   onMove(e) {
     if (e.pointerId === this._joyId) {
+      this._joyMaxDist = Math.max(
+        this._joyMaxDist,
+        Math.hypot(e.clientX - this._joyStart.x, e.clientY - this._joyStart.y)
+      );
+      if (!this._joyShown && this._joyMaxDist > this.TAP_SLOP) {
+        // タップではなくドラッグと確定 → ここで初めてスティックを表示
+        this._joyShown = true;
+        this.joyEl.style.display = 'block';
+      }
       let dx = e.clientX - this._joyOrigin.x;
       let dy = e.clientY - this._joyOrigin.y;
       const len = Math.hypot(dx, dy);
@@ -120,6 +155,15 @@ export class Input {
 
   onUp(e) {
     if (e.pointerId === this._joyId) {
+      // 片手モード: 動かさず素早く離した = タップ → ジャンプ
+      if (
+        CONFIG.ONE_HAND &&
+        performance.now() - this._joyStart.t < this.TAP_MS &&
+        this._joyMaxDist < this.TAP_SLOP
+      ) {
+        this._jump = true;
+        sfx.tap();
+      }
       this._joyId = null;
       this.move.x = 0;
       this.move.y = 0;

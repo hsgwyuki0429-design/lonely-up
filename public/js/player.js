@@ -139,6 +139,15 @@ export class Player {
     this.coyote = this.grounded ? C.COYOTE_TIME : Math.max(this.coyote - dt, 0);
     this.jumpBuffer = Math.max(this.jumpBuffer - dt, 0);
     if (input.consumeJump()) this.jumpBuffer = C.JUMP_BUFFER;
+    // 片手モード: スティックを大きく倒して走ったまま足場の端から出たら自動ジャンプ。
+    // 片手ではスティックを倒しながらジャンプ操作ができないため、走りジャンプを自動化する。
+    // コヨーテ時間内 (端から出た直後) かつ下降開始前のみ。ゆっくり歩けば発動せずそのまま落ちられる
+    if (
+      CONFIG.ONE_HAND && !this.grounded && this.coyote > 0 &&
+      this.vel.y <= 0 && mag > C.ONE_HAND_AUTOJUMP_MAG
+    ) {
+      this.jumpBuffer = C.JUMP_BUFFER;
+    }
     if (this.jumpBuffer > 0 && this.coyote > 0) {
       this.vel.y = C.JUMP_VEL;
       this.grounded = false;

@@ -85,6 +85,19 @@ function applyGyroMode(m) {
 applyGyroMode(localStorage.getItem(STORAGE.GYRO_MODE) ?? CONFIG.GYRO_MODE);
 gyroMode.addEventListener('change', (e) => applyGyroMode(e.target.value));
 
+// 片手モード (即時反映・保存)。ジャンプボタンを隠し、タイトルの操作説明も差し替える
+const oneHand = document.getElementById('oneHand');
+function applyOneHand(on) {
+  CONFIG.ONE_HAND = !!on;
+  oneHand.checked = !!on;
+  localStorage.setItem(STORAGE.ONE_HAND, on ? '1' : '0');
+  document.body.classList.toggle('onehand', !!on);
+  document.getElementById('howtoNormal').classList.toggle('hidden', !!on);
+  document.getElementById('howtoOneHand').classList.toggle('hidden', !on);
+}
+applyOneHand(localStorage.getItem(STORAGE.ONE_HAND) === '1');
+oneHand.addEventListener('change', (e) => applyOneHand(e.target.checked));
+
 // バージョン表示 (デプロイ反映の目視確認用)
 document.getElementById('appVer').textContent = `v${VERSION}`;
 
@@ -145,6 +158,7 @@ function startRun() {
   input.enabled = true;
   ui.startGame();
   ui.hideClear();
+  if (CONFIG.ONE_HAND) ui.toast('片手モード: ドラッグで移動 / タップでジャンプ');
 }
 
 document.getElementById('btnStart').addEventListener('click', startRun);
@@ -267,9 +281,13 @@ function updateCamera(dt) {
   camManualT = Math.max(camManualT - dt, 0);
   const moveMag = Math.min(Math.hypot(input.move.x, input.move.y), 1);
   const fwdRatio = Math.max(input.move.y, 0); // スティックの前方向成分 = カメラから離れる移動
-  if (camManualT <= 0 && !input.camDragging && moveMag > 0.1 && fwdRatio > 0) {
+  // 片手モード: カメラを回す指がないので、横移動でもゆるく背後へ回り込ませる
+  const follow = CONFIG.ONE_HAND
+    ? Math.max(fwdRatio, moveMag * CONFIG.ONE_HAND_FOLLOW)
+    : fwdRatio;
+  if (camManualT <= 0 && !input.camDragging && moveMag > 0.1 && follow > 0) {
     const diff = wrapAngle(player.yaw + Math.PI - camYaw);
-    camYaw += diff * Math.min(dt * CONFIG.CAM_FOLLOW * fwdRatio, 1);
+    camYaw += diff * Math.min(dt * CONFIG.CAM_FOLLOW * follow, 1);
   }
 
   const dist = CONFIG.CAM_DIST;

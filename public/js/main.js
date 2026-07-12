@@ -76,19 +76,23 @@ function resetCombo() {
 ui.el.nameInput.value = me.name;
 ui.showTitle(false);
 
-// オンライン接続
+// オンライン接続。ここで例外が出てもゲーム本体 (スタート等) が死なないよう握りつぶす
 if (net.available) {
-  net.join(me, {
-    onPos: (p) => ghosts.receive(p),
-    onCount: (n) => {
-      ui.el.online.textContent = String(n);
-      if (state === 'title') ui.showTitle(true);
-    },
-    onJoin: (name) => {
-      if (state !== 'title' && name) ui.toast(`${String(name).slice(0, 12)} さんが登り始めた`);
-    },
-    onLeave: (id) => ghosts.remove(id),
-  });
+  try {
+    net.join(me, {
+      onPos: (p) => ghosts.receive(p),
+      onCount: (n) => {
+        ui.el.online.textContent = String(n);
+        if (state === 'title') ui.showTitle(true);
+      },
+      onJoin: (name) => {
+        if (state !== 'title' && name) ui.toast(`${String(name).slice(0, 12)} さんが登り始めた`);
+      },
+      onLeave: (id) => ghosts.remove(id),
+    });
+  } catch (err) {
+    console.warn('[net] join failed', err);
+  }
 }
 
 // ================== 画面遷移 ==================

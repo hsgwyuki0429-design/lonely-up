@@ -76,10 +76,11 @@ gyroInvert.addEventListener('change', (e) => applyGyroInvert(e.target.checked));
 // ジャイロの発動条件モード (常時 / 右半分ホールド / 空中のみ)
 const gyroMode = document.getElementById('gyroMode');
 function applyGyroMode(m) {
-  const v = ['always', 'hold', 'air'].includes(m) ? m : 'hold';
+  const v = ['always', 'hold', 'air', 'peek'].includes(m) ? m : 'peek';
   CONFIG.GYRO_MODE = v;
   gyroMode.value = v;
   localStorage.setItem(STORAGE.GYRO_MODE, v);
+  input.resetPeek(); // 握り直しの基準を取り直す
 }
 applyGyroMode(localStorage.getItem(STORAGE.GYRO_MODE) ?? CONFIG.GYRO_MODE);
 gyroMode.addEventListener('change', (e) => applyGyroMode(e.target.value));
@@ -132,6 +133,7 @@ function startRun() {
   localStorage.setItem(STORAGE.NAME, me.name);
   sfx.unlock();
   input.enableGyro(); // タップ (ユーザー操作) の流れで呼び、iOS の許可ダイアログを出す
+  input.resetPeek();  // このランの握り方を 'peek' の基準にする
   player.spawn();
   camYaw = Math.PI;
   camPitch = 0.35;
@@ -249,6 +251,14 @@ function updateCamera(dt) {
     camYaw += gd.yaw;
     camPitch = THREE.MathUtils.clamp(
       camPitch - gd.pitch, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
+  }
+
+  // 'peek' モード: 上下だけ端末の傾き (絶対角) でピッチを決める。水平に戻せば正面へ戻る。
+  // 左右 (camYaw) はスティック/自動追従に任せる。ジャイロ未対応端末では従来のドラッグ操作を維持
+  if (CONFIG.GYRO_MODE === 'peek' && input.gyroReady) {
+    const PEEK_BASE = 0.35; // 端末が基準の握りのときのカメラピッチ
+    camPitch = THREE.MathUtils.clamp(
+      PEEK_BASE + input.gyroPitchOffset, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
   }
 
   // カメラの自動回り込みは「前へ進んでいる時」だけゆるく効かせる。

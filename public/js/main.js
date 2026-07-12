@@ -145,6 +145,23 @@ document.getElementById('btnRestart').addEventListener('click', () => {
   ui.hideClear();
   ui.toast('スタートに戻った');
 });
+// ホーム (タイトル) に戻る
+function goHome() {
+  if (allTimeBest > 0) { // 途中でも自己ベストは保存・送信してから戻る
+    localStorage.setItem(STORAGE.BEST, String(allTimeBest));
+    net.submitScore(me.name, allTimeBest, bestClearMs);
+  }
+  state = 'title';
+  input.enabled = false;
+  ui.closeRanking();
+  ui.hideClear();
+  ui.hideCombo();
+  ui.showTitle(net.available);
+}
+document.getElementById('btnHome').addEventListener('click', () => {
+  if (state === 'title') return;
+  goHome();
+});
 document.getElementById('btnClearRestart').addEventListener('click', () => {
   player.spawnKeepBest();
   runStart = performance.now();

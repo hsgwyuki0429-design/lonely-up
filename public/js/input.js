@@ -230,6 +230,12 @@ export class Input {
     this._gyroYaw = yaw;
     this._gyroPitch = pitch;
 
+    // 画面右半分を押している間だけジャイロで視点を動かす。
+    // 基準 (prev) は上で常に更新済みなので、押し直した瞬間に視点が飛ばない。
+    // ジャンプ/会釈ボタンは別 DOM 要素で canvas の onDown を発火せず camId を作らないため、
+    // それらを押している時はジャイロが効かない (＝ジャンプ押下は除外される)。
+    if (this._camId === null) return;
+
     // 微小な手ブレは無視 (静止中に自動追従カメラを止めてしまわないように)
     const dz = CONFIG.GYRO_DEADZONE;
     if (Math.abs(dy) < dz && Math.abs(dp) < dz) return;

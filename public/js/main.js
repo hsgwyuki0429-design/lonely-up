@@ -93,6 +93,7 @@ function startRun() {
   me.name = (ui.el.nameInput.value || me.name).trim().slice(0, 12) || 'ゲスト';
   localStorage.setItem(STORAGE.NAME, me.name);
   sfx.unlock();
+  input.enableGyro(); // タップ (ユーザー操作) の流れで呼び、iOS の許可ダイアログを出す
   player.spawn();
   camYaw = Math.PI;
   camPitch = 0.35;
@@ -185,6 +186,15 @@ function updateCamera(dt) {
   camYaw -= d.x * 0.0055;
   camPitch = THREE.MathUtils.clamp(
     camPitch + d.y * 0.005, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
+
+  // スマホのジャイロ: 端末を振った分だけ視点を回す (指ドラッグと同様に自動追従を一時停止)
+  const gd = input.takeGyroDelta();
+  if (gd.yaw || gd.pitch) {
+    camManualT = CONFIG.CAM_MANUAL_HOLD;
+    camYaw += gd.yaw;
+    camPitch = THREE.MathUtils.clamp(
+      camPitch - gd.pitch, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
+  }
 
   // カメラの自動回り込みは「前へ進んでいる時」だけゆるく効かせる。
   // 横移動でカメラが回ると移動方向 (カメラ基準) が流されて円を描いてしまうため、

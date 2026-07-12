@@ -287,6 +287,7 @@ html, body {
 }
 
 .netstatus { font-size: 11px; opacity: 0.55; }
+.appver { font-size: 10px; opacity: 0.4; letter-spacing: 1px; }
 .netstatus.online { color: #7fe0a0; opacity: 1; }
 
 /* ===== ranking ===== */

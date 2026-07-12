@@ -49,55 +49,6 @@ const me = {
 localStorage.setItem(STORAGE.COLOR, String(me.color));
 player.setColor(PLAYER_COLORS[me.color % PLAYER_COLORS.length]);
 
-// ================== 設定: ジャイロ感度 (1〜10倍) ==================
-// スライダーで即時反映。onGyro が毎回 CONFIG.GYRO_SENS を読むのでプレイ中でも効く
-const gyroSlider = document.getElementById('gyroSens');
-const gyroSensVal = document.getElementById('gyroSensVal');
-function applyGyroSens(v) {
-  const s = Math.min(10, Math.max(1, Math.round(Number(v) || CONFIG.GYRO_SENS)));
-  CONFIG.GYRO_SENS = s;
-  gyroSlider.value = String(s);
-  gyroSensVal.textContent = `×${s}`;
-  localStorage.setItem(STORAGE.GYRO, String(s));
-}
-applyGyroSens(localStorage.getItem(STORAGE.GYRO) ?? CONFIG.GYRO_SENS);
-gyroSlider.addEventListener('input', (e) => applyGyroSens(e.target.value));
-
-// ジャイロ左右反転トグル (即時反映・保存)
-const gyroInvert = document.getElementById('gyroInvert');
-function applyGyroInvert(on) {
-  CONFIG.GYRO_INVERT_X = !!on;
-  gyroInvert.checked = !!on;
-  localStorage.setItem(STORAGE.GYRO_INVERT, on ? '1' : '0');
-}
-applyGyroInvert(localStorage.getItem(STORAGE.GYRO_INVERT) === '1');
-gyroInvert.addEventListener('change', (e) => applyGyroInvert(e.target.checked));
-
-// ジャイロの発動条件モード (常時 / 右半分ホールド / 空中のみ)
-const gyroMode = document.getElementById('gyroMode');
-function applyGyroMode(m) {
-  const v = ['always', 'hold', 'air', 'peek'].includes(m) ? m : 'peek';
-  CONFIG.GYRO_MODE = v;
-  gyroMode.value = v;
-  localStorage.setItem(STORAGE.GYRO_MODE, v);
-  input.resetPeek(); // 握り直しの基準を取り直す
-}
-applyGyroMode(localStorage.getItem(STORAGE.GYRO_MODE) ?? CONFIG.GYRO_MODE);
-gyroMode.addEventListener('change', (e) => applyGyroMode(e.target.value));
-
-// 片手モード (即時反映・保存)。ジャンプボタンを隠し、タイトルの操作説明も差し替える
-const oneHand = document.getElementById('oneHand');
-function applyOneHand(on) {
-  CONFIG.ONE_HAND = !!on;
-  oneHand.checked = !!on;
-  localStorage.setItem(STORAGE.ONE_HAND, on ? '1' : '0');
-  document.body.classList.toggle('onehand', !!on);
-  document.getElementById('howtoNormal').classList.toggle('hidden', !!on);
-  document.getElementById('howtoOneHand').classList.toggle('hidden', !on);
-}
-applyOneHand(localStorage.getItem(STORAGE.ONE_HAND) === '1');
-oneHand.addEventListener('change', (e) => applyOneHand(e.target.checked));
-
 // バージョン表示 (デプロイ反映の目視確認用)
 document.getElementById('appVer').textContent = `v${VERSION}`;
 
@@ -145,8 +96,6 @@ function startRun() {
   me.name = (ui.el.nameInput.value || me.name).trim().slice(0, 12) || 'ゲスト';
   localStorage.setItem(STORAGE.NAME, me.name);
   sfx.unlock();
-  input.enableGyro(); // タップ (ユーザー操作) の流れで呼び、iOS の許可ダイアログを出す
-  input.resetPeek();  // このランの握り方を 'peek' の基準にする
   player.spawn();
   camYaw = Math.PI;
   camPitch = 0.35;
@@ -159,7 +108,7 @@ function startRun() {
   input.enabled = true;
   ui.startGame();
   ui.hideClear();
-  if (CONFIG.ONE_HAND) ui.toast('片手モード: ドラッグで移動 / タップでジャンプ');
+  ui.toast('ドラッグで移動 / タップでジャンプ');
 }
 
 document.getElementById('btnStart').addEventListener('click', startRun);
@@ -237,12 +186,12 @@ document.addEventListener('visibilitychange', () => {
 let camYaw = Math.PI;
 let camPitch = 0.35;
 let camManualT = 0;      // 手動カメラ操作の余韻 (この間は自動追従しない)
-let camPullYaw = 0;      // 片手モード: 着地時に「次の足場」の方向へ視点を引っ張る目標ヨー
+let camPullYaw = 0;      // 着地時に「次の足場」の方向へ視点を引っ張る目標ヨー
 let camPullT = 0;        // 引っ張りの残り時間 (秒)
 const camTarget = new THREE.Vector3();
 const camPos = new THREE.Vector3();
 
-// 片手モード: 着地した足場の「次の足場」(生成順 = 登頂ルート順) の方向へ視点を向ける。
+// 着地した足場の「次の足場」(生成順 = 登頂ルート順) の方向へ視点を向ける。
 // カメラを操作する指がないので、どこへ行けばいいかをカメラが教えてくれるようにする
 function pullCamToNext() {
   const i = world.platforms.indexOf(player.standing);
@@ -276,24 +225,7 @@ function updateCamera(dt) {
   camPitch = THREE.MathUtils.clamp(
     camPitch + d.y * 0.005, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
 
-  // スマホのジャイロ: 端末を振った分だけ視点を回す (指ドラッグと同様に自動追従を一時停止)
-  const gd = input.takeGyroDelta();
-  if (gd.yaw || gd.pitch) {
-    camManualT = CONFIG.CAM_MANUAL_HOLD;
-    camYaw += gd.yaw;
-    camPitch = THREE.MathUtils.clamp(
-      camPitch - gd.pitch, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
-  }
-
-  // 'peek' モード: 上下だけ端末の傾き (絶対角) でピッチを決める。水平に戻せば正面へ戻る。
-  // 左右 (camYaw) はスティック/自動追従に任せる。ジャイロ未対応端末では従来のドラッグ操作を維持
-  if (CONFIG.GYRO_MODE === 'peek' && input.gyroReady) {
-    const PEEK_BASE = 0.35; // 端末が基準の握りのときのカメラピッチ
-    camPitch = THREE.MathUtils.clamp(
-      PEEK_BASE + input.gyroPitchOffset, CONFIG.CAM_PITCH_MIN, CONFIG.CAM_PITCH_MAX);
-  }
-
-  // 片手モード: 着地直後は「次の足場」の方向へ視点をなめらかに引っ張る。
+  // 着地直後は「次の足場」の方向へ視点をなめらかに引っ張る。
   // 手動でカメラを操作したら即中断する (プレイヤーの意思を優先)
   if (camPullT > 0) {
     if (d.x || d.y || input.camDragging) {
@@ -311,10 +243,8 @@ function updateCamera(dt) {
   camManualT = Math.max(camManualT - dt, 0);
   const moveMag = Math.min(Math.hypot(input.move.x, input.move.y), 1);
   const fwdRatio = Math.max(input.move.y, 0); // スティックの前方向成分 = カメラから離れる移動
-  // 片手モード: カメラを回す指がないので、横移動でもゆるく背後へ回り込ませる
-  const follow = CONFIG.ONE_HAND
-    ? Math.max(fwdRatio, moveMag * CONFIG.ONE_HAND_FOLLOW)
-    : fwdRatio;
+  // カメラを回す指がないので、横移動でもゆるく背後へ回り込ませる
+  const follow = Math.max(fwdRatio, moveMag * CONFIG.ONE_HAND_FOLLOW);
   if (camPullT <= 0 && camManualT <= 0 && !input.camDragging && moveMag > 0.1 && follow > 0) {
     const diff = wrapAngle(player.yaw + Math.PI - camYaw);
     camYaw += diff * Math.min(dt * CONFIG.CAM_FOLLOW * follow, 1);
@@ -354,7 +284,6 @@ function frame(now) {
 
   if (state === 'play' || state === 'clear') {
     input.poll();
-    input.airborne = !player.grounded; // 'air' モードのジャイロ判定に使う
     frozen = fx.tickFreeze(dt);
     if (!frozen) {
       acc += dt;
@@ -394,8 +323,8 @@ function frame(now) {
           fx.shake(0.2 + k * 0.3); // 強い着地は画面も揺れる
           fx.vibrate(15);
         }
-        // 片手モード: 着地したら次の足場の方向へ視点を引っ張る
-        if (CONFIG.ONE_HAND) pullCamToNext();
+        // 着地したら次の足場の方向へ視点を引っ張る
+        pullCamToNext();
         // コンボ: 今までより高い足場に乗れたら加算
         if (ev.topY > comboTopY + 0.3) {
           combo++;

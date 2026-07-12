@@ -139,11 +139,11 @@ export class Player {
     this.coyote = this.grounded ? C.COYOTE_TIME : Math.max(this.coyote - dt, 0);
     this.jumpBuffer = Math.max(this.jumpBuffer - dt, 0);
     if (input.consumeJump()) this.jumpBuffer = C.JUMP_BUFFER;
-    // 片手モード: スティックを大きく倒して走ったまま足場の端から出たら自動ジャンプ。
+    // スティックを大きく倒して走ったまま足場の端から出たら自動ジャンプ。
     // 片手ではスティックを倒しながらジャンプ操作ができないため、走りジャンプを自動化する。
     // コヨーテ時間内 (端から出た直後) かつ下降開始前のみ。ゆっくり歩けば発動せずそのまま落ちられる
     if (
-      CONFIG.ONE_HAND && !this.grounded && this.coyote > 0 &&
+      !this.grounded && this.coyote > 0 &&
       this.vel.y <= 0 && mag > C.ONE_HAND_AUTOJUMP_MAG
     ) {
       this.jumpBuffer = C.JUMP_BUFFER;
@@ -189,14 +189,20 @@ export class Player {
     }
 
     // --- 水平移動 (軸ごとに解決) ---
-    let wallTop = null; // 横からぶつかったブロックの上面 (片手モードの自動ジャンプ判定に使う)
+    // 押し出す向きは「速度の符号」ではなく「めり込みが浅い側 (最寄りの辺)」で決める。
+    // 動く足場 (水色) が横から入り込んでくると自機の速度が0や逆向きのことがあり、
+    // 符号で判定すると押し出されない→深くめり込む→反対側へワープしていた。
+    // 最寄りの辺なら毎フレーム確実に浅い側へ押し戻すので、ワープしない。
+    let wallTop = null; // 横からぶつかったブロックの上面 (自動ジャンプ判定に使う)
     this.pos.x += this.vel.x * dt;
     for (const p of near) {
       const b = this.world.aabb(p, t, tmpBox);
       if (!this.aabbOverlap(b)) continue;
       if (this.pos.y - C.PLAYER_HALF_H > b.maxY - 0.3) continue; // 上に立っている
-      if (this.vel.x > 0) this.pos.x = b.minX - C.PLAYER_R;
-      else if (this.vel.x < 0) this.pos.x = b.maxX + C.PLAYER_R;
+      const penL = (this.pos.x + C.PLAYER_R) - b.minX; // 左の辺から出るのに必要な距離
+      const penR = b.maxX - (this.pos.x - C.PLAYER_R); // 右の辺から出るのに必要な距離
+      if (penL < penR) this.pos.x = b.minX - C.PLAYER_R;
+      else this.pos.x = b.maxX + C.PLAYER_R;
       this.vel.x = 0;
       wallTop = Math.max(wallTop ?? -Infinity, b.maxY);
     }
@@ -205,17 +211,19 @@ export class Player {
       const b = this.world.aabb(p, t, tmpBox);
       if (!this.aabbOverlap(b)) continue;
       if (this.pos.y - C.PLAYER_HALF_H > b.maxY - 0.3) continue;
-      if (this.vel.z > 0) this.pos.z = b.minZ - CONFIG.PLAYER_R;
-      else if (this.vel.z < 0) this.pos.z = b.maxZ + CONFIG.PLAYER_R;
+      const penN = (this.pos.z + C.PLAYER_R) - b.minZ;
+      const penF = b.maxZ - (this.pos.z - C.PLAYER_R);
+      if (penN < penF) this.pos.z = b.minZ - C.PLAYER_R;
+      else this.pos.z = b.maxZ + C.PLAYER_R;
       this.vel.z = 0;
       wallTop = Math.max(wallTop ?? -Infinity, b.maxY);
     }
 
-    // 片手モード: 足場に立ったまま隣のブロックに走り込んで押し付けられたら自動ジャンプ
+    // 足場に立ったまま隣のブロックに走り込んで押し付けられたら自動ジャンプ
     // (二つのブロックに触れた状態)。次の足場がすぐ隣にあると端まで行けず、
     // 端の自動ジャンプが発動しないため。ジャンプで届く高さの相手にだけ発動する
     if (
-      CONFIG.ONE_HAND && this.grounded && wallTop !== null &&
+      this.grounded && wallTop !== null &&
       mag > C.ONE_HAND_AUTOJUMP_MAG
     ) {
       const rise = wallTop - (this.pos.y - C.PLAYER_HALF_H);

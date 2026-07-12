@@ -1,6 +1,6 @@
 // アプリのバージョン。アプデのたびに 0.1 ずつ上げる (package.json と sw.js の CACHE も揃える)。
 // タイトル画面に表示し、デプロイが反映されたかを目視確認できるようにしている。
-export const VERSION = '1.8';
+export const VERSION = '1.9';
 
 // 全クライアント共通の定数。SEED を変えると塔の形が変わる
 // (全員同じ塔を登ることでランキングが公平になる)。
@@ -26,19 +26,13 @@ export const CONFIG = {
   CAM_PITCH_MAX: 1.25,
   CAM_FOLLOW: 2.0,           // 前進中にカメラが背後へゆるく回り込む速さ (横移動では回さない)
   CAM_MANUAL_HOLD: 1.2,      // 手動カメラ操作後に自動追従を止める秒数
-  GYRO_SENS: 2,              // ジャイロ視点の左右 (ヨー) 感度倍率。縦 (ピッチ) は常に1倍固定
-  GYRO_INVERT_X: false,      // ジャイロの左右を反転するか (タイトルのトグルで切り替え)
-  GYRO_MODE: 'peek',         // ジャイロ発動条件: 'always'=常時 / 'hold'=右半分を押してる間 / 'air'=空中の間 / 'peek'=傾けて上下を覗く
-  GYRO_PEEK_GAIN: 1.5,       // 'peek' モードで端末の傾き (rad) をカメラピッチにどれだけ反映するか
-  GYRO_DEADZONE: 0.002,      // 1イベントあたりの微小な揺れ (rad) を無視。静止時の自動追従を妨げないため
 
-  // 片手モード: 画面全体がスティック / タップでジャンプ / 走って端から出ると自動ジャンプ。
-  // カメラは自動追従 (+ジャイロ) に任せる。タイトルのチェックボックスで切替
-  ONE_HAND: false,
-  ONE_HAND_FOLLOW: 0.5,      // 片手モードで横移動時にカメラが背後へ回り込む強さ (0〜1, 前進成分との大きい方を採用)
+  // 操作は片手モードのみ: 画面全体がスティック / タップでジャンプ / 走って端 (または隣のブロック)
+  // に当たると自動ジャンプ。カメラは自動追従 + 着地時に次の足場の方向へ引っ張る。
+  ONE_HAND_FOLLOW: 0.5,      // 横移動時にカメラが背後へ回り込む強さ (0〜1, 前進成分との大きい方を採用)
   ONE_HAND_AUTOJUMP_MAG: 0.5, // 自動ジャンプが発動するスティック倒し量のしきい値 (ゆっくり歩けば発動しない)
-  ONE_HAND_PULL: 5,          // 着地時に「次の足場」の方向へ視点が回り込む速さ (大きいほど速い)
-  ONE_HAND_PULL_TIME: 0.8,   // 着地後、視点の引っ張りが効き続ける時間 (秒)。手動カメラ操作で即中断
+  ONE_HAND_PULL: 12,         // 着地時に「次の足場」の方向へ視点が回り込む速さ (大きいほど速い)
+  ONE_HAND_PULL_TIME: 0.6,   // 着地後、視点の引っ張りが効き続ける時間 (秒)。手動カメラ操作で即中断
 
   BOW_TIME: 0.9,             // 会釈 (おじぎ) の長さ (秒)
 
@@ -54,10 +48,6 @@ export const STORAGE = {
   BEST: 'lonelyup_best',
   CLEAR_MS: 'lonelyup_clear_ms',
   COLOR: 'lonelyup_color',
-  GYRO: 'lonelyup_gyro_sens',
-  GYRO_INVERT: 'lonelyup_gyro_invert',
-  GYRO_MODE: 'lonelyup_gyro_mode',
-  ONE_HAND: 'lonelyup_one_hand',
 };
 
 // プレイヤーカラー候補

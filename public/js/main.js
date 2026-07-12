@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG, STORAGE, PLAYER_COLORS } from './config.js';
+import { CONFIG, STORAGE, PLAYER_COLORS, VERSION } from './config.js';
 import { World } from './world.js';
 import { Player } from './player.js';
 import { Input } from './input.js';
@@ -62,6 +62,9 @@ function applyGyroSens(v) {
 }
 applyGyroSens(localStorage.getItem(STORAGE.GYRO) ?? CONFIG.GYRO_SENS);
 gyroSlider.addEventListener('input', (e) => applyGyroSens(e.target.value));
+
+// バージョン表示 (デプロイ反映の目視確認用)
+document.getElementById('appVer').textContent = `v${VERSION}`;
 
 let allTimeBest = Number(localStorage.getItem(STORAGE.BEST) || 0);
 let bestClearMs = localStorage.getItem(STORAGE.CLEAR_MS)

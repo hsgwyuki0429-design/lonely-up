@@ -64,13 +64,21 @@
   <input id="nameInput" type="text" maxlength="12" placeholder="なまえ (12文字まで)" autocomplete="off">
   <button id="btnStart" class="primary">のぼる</button>
   <div class="howto">
-    <div>🕹 左半分ドラッグ : 移動</div>
-    <div>👀 右半分ドラッグ : カメラ</div>
-    <div>🦘 JUMPボタン : ジャンプ</div>
+    <div id="howtoNormal">
+      <div>🕹 左半分ドラッグ : 移動</div>
+      <div>👀 右半分ドラッグ : カメラ</div>
+      <div>🦘 JUMPボタン : ジャンプ</div>
+    </div>
+    <div id="howtoOneHand" class="hidden">
+      <div>🕹 画面のどこでもドラッグ : 移動</div>
+      <div>🦘 タップ : ジャンプ / 走れば段差から自動ジャンプ</div>
+      <div>👀 カメラ : 自動で背後に回り込む</div>
+    </div>
     <div>🙇 おじぎボタン : 会釈 (みんなに見える)</div>
     <div class="pc">PC : WASD + Space / C で会釈 / マウスでカメラ</div>
   </div>
   <div class="setting">
+    <label class="checkrow"><input id="oneHand" type="checkbox"> 🖐 片手モード (タップでジャンプ)</label>
     <label class="selrow" for="gyroMode">📱 ジャイロ視点
       <select id="gyroMode">
         <option value="peek">傾けて上下を覗く（おすすめ）</option>

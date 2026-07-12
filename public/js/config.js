@@ -1,6 +1,6 @@
 // アプリのバージョン。アプデのたびに 0.1 ずつ上げる (package.json と sw.js の CACHE も揃える)。
 // タイトル画面に表示し、デプロイが反映されたかを目視確認できるようにしている。
-export const VERSION = '1.6';
+export const VERSION = '1.7';
 
 // 全クライアント共通の定数。SEED を変えると塔の形が変わる
 // (全員同じ塔を登ることでランキングが公平になる)。
@@ -32,6 +32,12 @@ export const CONFIG = {
   GYRO_PEEK_GAIN: 1.5,       // 'peek' モードで端末の傾き (rad) をカメラピッチにどれだけ反映するか
   GYRO_DEADZONE: 0.002,      // 1イベントあたりの微小な揺れ (rad) を無視。静止時の自動追従を妨げないため
 
+  // 片手モード: 画面全体がスティック / タップでジャンプ / 走って端から出ると自動ジャンプ。
+  // カメラは自動追従 (+ジャイロ) に任せる。タイトルのチェックボックスで切替
+  ONE_HAND: false,
+  ONE_HAND_FOLLOW: 0.5,      // 片手モードで横移動時にカメラが背後へ回り込む強さ (0〜1, 前進成分との大きい方を採用)
+  ONE_HAND_AUTOJUMP_MAG: 0.5, // 自動ジャンプが発動するスティック倒し量のしきい値 (ゆっくり歩けば発動しない)
+
   BOW_TIME: 0.9,             // 会釈 (おじぎ) の長さ (秒)
 
   KILL_Y: -14,               // ここまで落ちたらスタートに戻る
@@ -49,6 +55,7 @@ export const STORAGE = {
   GYRO: 'lonelyup_gyro_sens',
   GYRO_INVERT: 'lonelyup_gyro_invert',
   GYRO_MODE: 'lonelyup_gyro_mode',
+  ONE_HAND: 'lonelyup_one_hand',
 };
 
 // プレイヤーカラー候補

@@ -128,6 +128,9 @@ html, body {
 }
 #btnBow:active { transform: scale(0.88, 0.92); }
 
+/* 片手モード: タップがジャンプなので JUMP ボタンは隠す */
+body.onehand #btnJump { display: none; }
+
 /* ===== juice (画面フラッシュ / コンボ / 高度ポップ) ===== */
 #flash {
   position: fixed;
@@ -269,6 +272,12 @@ html, body {
   font-size: 12px;
   opacity: 0.8;
   text-align: left;
+}
+/* 通常/片手モードで差し替わる操作説明ブロックも同じ行間で並べる */
+#howtoNormal, #howtoOneHand {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 .setting {
   width: 100%;

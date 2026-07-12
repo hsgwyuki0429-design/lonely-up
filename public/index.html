@@ -91,10 +91,25 @@
 
 <script type="module" src="/js/main.js"></script>
 <script>
-  // PWA: ホーム画面追加 (A2HS) 対応
+  // PWA: ホーム画面追加 (A2HS) 対応 + 更新の自動反映。
+  // 新バージョンをデプロイしたとき、古いキャッシュのJSと新HTMLが混ざって
+  // 起動不能になるのを防ぐため、新しい SW が有効化されたら一度だけ再読み込みして
+  // すべてのファイルを同じバージョンに揃える。
   if ('serviceWorker' in navigator) {
+    // ページ読み込み時点で既にSWに制御されていたか。初回インストール時の
+    // 不要な再読み込みを避けるため (更新のときだけ再読み込みする) に使う。
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading || !hadController) return; // 初回インストールでは再読み込みしない
+      reloading = true;
+      window.location.reload();
+    });
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        // 起動時にも更新を確認し、待機中の新SWがあれば即時反映させる
+        reg.update?.();
+      }).catch(() => {});
     });
   }
 </script>

@@ -27,6 +27,8 @@ export class Input {
     // 端末の姿勢をワールド座標系に変換し、その視線ヨー/ピッチの差分をカメラへ渡す
     this.gyroDelta = { yaw: 0, pitch: 0 };
     this.airborne = false; // 自機が空中にいるか (main が毎フレーム更新。'air' モードで参照)
+    this.gyroPitchOffset = 0; // 'peek' モードの上下オフセット (絶対角ベース。ドリフトしない)
+    this._peekNeutral = null; // 'peek' の基準となる端末ピッチ (握り方に合わせて開始時に取得)
     this._gyroOn = false;
     this._gyroHasPrev = false;
     this._gyroYaw = 0;
@@ -183,6 +185,14 @@ export class Input {
     return d;
   }
 
+  get gyroReady() { return this._gyroOn; }
+
+  // 'peek' の基準をリセット (モード切替時・ラン開始時に握り直しを再取得)
+  resetPeek() {
+    this._peekNeutral = null;
+    this.gyroPitchOffset = 0;
+  }
+
   // ジャイロを有効化。iOS 13+ は要許可 (ユーザー操作＝ゲーム開始のタップから呼ぶこと)。
   // 非対応端末・不許可でも例外を投げず false を返すだけ
   enableGyro() {
@@ -217,6 +227,15 @@ export class Input {
     const fz = -(cB * cG); // ワールド上向き成分
     const yaw = Math.atan2(fx, fy);
     const pitch = Math.atan2(fz, Math.hypot(fx, fy));
+
+    // 'peek' モード: 端末の上下の傾きを「絶対角」でカメラピッチのオフセットに変換する。
+    // 相対的に積算しないのでドリフトせず、端末を基準の握りに戻せば視点も正面へ戻る。
+    // 左右 (ヨー) は触らず、上下の覗き見だけを担当する。相対モードの基準管理より前に処理する。
+    if (CONFIG.GYRO_MODE === 'peek') {
+      if (this._peekNeutral === null) this._peekNeutral = pitch; // 最初のサンプル＝基準の握り
+      this.gyroPitchOffset = -(pitch - this._peekNeutral) * CONFIG.GYRO_PEEK_GAIN;
+      return;
+    }
 
     if (!this._gyroHasPrev) {
       this._gyroYaw = yaw;

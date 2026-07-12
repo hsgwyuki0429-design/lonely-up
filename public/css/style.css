@@ -90,27 +90,7 @@ html, body {
   transform: translate(-50%, -50%);
 }
 
-#btnJump {
-  pointer-events: auto;
-  position: absolute;
-  right: calc(env(safe-area-inset-right, 0px) + 22px);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 128px); /* しゃがみボタンの上 */
-  width: 88px;
-  height: 88px;
-  border-radius: 50%;
-  border: none;
-  background: radial-gradient(circle at 35% 30%, #ffd97a, #ff9f43);
-  color: #5b3300;
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  box-shadow: 0 6px 18px rgba(255, 159, 67, 0.4);
-  cursor: pointer;
-}
-#btnJump { transition: transform 0.06s ease-out; }
-#btnJump:active { transform: scale(0.88, 0.92); } /* 押した瞬間に少し潰れる */
-
-/* しゃがみ (会釈) ボタン: JUMP と同サイズでその真下に */
+/* しゃがみ (会釈) ボタン: 右下。タップ=ジャンプなのでジャンプボタンは無い */
 #btnBow {
   pointer-events: auto;
   position: absolute;
@@ -127,9 +107,6 @@ html, body {
   transition: transform 0.06s ease-out;
 }
 #btnBow:active { transform: scale(0.88, 0.92); }
-
-/* 片手モード: タップがジャンプなので JUMP ボタンは隠す */
-body.onehand #btnJump { display: none; }
 
 /* ===== juice (画面フラッシュ / コンボ / 高度ポップ) ===== */
 #flash {
@@ -273,52 +250,8 @@ body.onehand #btnJump { display: none; }
   opacity: 0.8;
   text-align: left;
 }
-/* 通常/片手モードで差し替わる操作説明ブロックも同じ行間で並べる */
-#howtoNormal, #howtoOneHand {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.setting {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  opacity: 0.85;
-  text-align: left;
-}
-.setting label { display: flex; justify-content: space-between; }
-.setting #gyroSensVal { color: #ffc65c; font-weight: 700; font-variant-numeric: tabular-nums; }
-.setting input[type="range"] {
-  width: 100%;
-  accent-color: #ff9f43;
-}
 
 .netstatus { font-size: 11px; opacity: 0.55; }
-.checkrow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  cursor: pointer;
-}
-.checkrow input { width: 16px; height: 16px; accent-color: #ff9f43; }
-.selrow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.selrow select {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  padding: 4px 6px;
-  font-size: 12px;
-}
-.selrow select option { color: #000; }
 
 /* バージョン表示: 画面左下に常時表示 (デプロイ反映の目視確認用) */
 .appver {
@@ -361,6 +294,5 @@ body.onehand #btnJump { display: none; }
 .rankrow .rtime { font-size: 11px; opacity: 0.7; font-variant-numeric: tabular-nums; }
 
 @media (min-width: 768px) {
-  #btnJump { width: 76px; height: 76px; bottom: calc(env(safe-area-inset-bottom, 0px) + 116px); }
   #btnBow { width: 76px; height: 76px; font-size: 30px; }
 }

@@ -188,34 +188,36 @@ export class Player {
       }
     }
 
-    // --- 水平移動 (軸ごとに解決) ---
-    // 押し出す向きは「速度の符号」ではなく「めり込みが浅い側 (最寄りの辺)」で決める。
-    // 動く足場 (水色) が横から入り込んでくると自機の速度が0や逆向きのことがあり、
-    // 符号で判定すると押し出されない→深くめり込む→反対側へワープしていた。
-    // 最寄りの辺なら毎フレーム確実に浅い側へ押し戻すので、ワープしない。
-    let wallTop = null; // 横からぶつかったブロックの上面 (自動ジャンプ判定に使う)
+    // --- 水平移動 (X・Z を同時に進めてから最小移動量 (MTV) で押し出す) ---
+    // 軸を別々に解決すると、足場の「角」をかすめたとき (片軸はごく浅く、もう片軸は深い)
+    // 深い方の軸で大きく弾かれてワープして見える。各足場について X/Z 4辺のうち
+    // 押し出し量が最小の辺だけを解決すれば、常に最短距離で押し戻すのでワープしない。
+    // 速度の符号ではなく貫入量で向きを決めるので、動く足場 (水色) が横から入り込んでも安定。
     this.pos.x += this.vel.x * dt;
+    this.pos.z += this.vel.z * dt;
+    let wallTop = null; // 横からぶつかったブロックの上面 (自動ジャンプ判定に使う)
     for (const p of near) {
       const b = this.world.aabb(p, t, tmpBox);
       if (!this.aabbOverlap(b)) continue;
       if (this.pos.y - C.PLAYER_HALF_H > b.maxY - 0.3) continue; // 上に立っている
-      const penL = (this.pos.x + C.PLAYER_R) - b.minX; // 左の辺から出るのに必要な距離
-      const penR = b.maxX - (this.pos.x - C.PLAYER_R); // 右の辺から出るのに必要な距離
-      if (penL < penR) this.pos.x = b.minX - C.PLAYER_R;
-      else this.pos.x = b.maxX + C.PLAYER_R;
-      this.vel.x = 0;
-      wallTop = Math.max(wallTop ?? -Infinity, b.maxY);
-    }
-    this.pos.z += this.vel.z * dt;
-    for (const p of near) {
-      const b = this.world.aabb(p, t, tmpBox);
-      if (!this.aabbOverlap(b)) continue;
-      if (this.pos.y - C.PLAYER_HALF_H > b.maxY - 0.3) continue;
-      const penN = (this.pos.z + C.PLAYER_R) - b.minZ;
-      const penF = b.maxZ - (this.pos.z - C.PLAYER_R);
-      if (penN < penF) this.pos.z = b.minZ - C.PLAYER_R;
-      else this.pos.z = b.maxZ + C.PLAYER_R;
-      this.vel.z = 0;
+      const penL = (this.pos.x + C.PLAYER_R) - b.minX; // -X側 (左辺) へ抜ける距離
+      const penR = b.maxX - (this.pos.x - C.PLAYER_R); // +X側 (右辺) へ抜ける距離
+      const penN = (this.pos.z + C.PLAYER_R) - b.minZ; // -Z側 (手前) へ抜ける距離
+      const penF = b.maxZ - (this.pos.z - C.PLAYER_R); // +Z側 (奥) へ抜ける距離
+      const bestX = Math.min(penL, penR);
+      const bestZ = Math.min(penN, penF);
+      // 1フレームで押し出す最大距離。通常の壁は 0.1m 程度で足りる。これを超える深い
+      // めり込み (空中で角や裏面をかすめた等) は一気に飛ばさず少しずつ戻す = 瞬間移動を防ぐ。
+      const MAX_PUSH = 0.3;
+      if (bestX <= bestZ) {
+        const target = penL < penR ? b.minX - C.PLAYER_R : b.maxX + C.PLAYER_R;
+        this.pos.x += THREE.MathUtils.clamp(target - this.pos.x, -MAX_PUSH, MAX_PUSH);
+        this.vel.x = 0;
+      } else {
+        const target = penN < penF ? b.minZ - C.PLAYER_R : b.maxZ + C.PLAYER_R;
+        this.pos.z += THREE.MathUtils.clamp(target - this.pos.z, -MAX_PUSH, MAX_PUSH);
+        this.vel.z = 0;
+      }
       wallTop = Math.max(wallTop ?? -Infinity, b.maxY);
     }
 

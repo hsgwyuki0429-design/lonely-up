@@ -293,8 +293,9 @@ const comboRate = () => 1 + Math.min(combo, 12) * 0.04;
 // 環境光・シェイク用のコンボ色 (UI.comboColor と対応: 黄 → 橙 → 赤熱)
 const comboGlowHex = (n) => (n >= 9 ? 0xff5b5b : n >= 5 ? 0xff9f43 : 0xffd166);
 
-// 着地の通算回数。5回に1回、乗った土台が「当たり色」に染まる (収集感 = ドーパミン)
+// 着地の通算回数。着地するたびに土台の色が変わり、5回に1回は特大の当たり演出
 let landCount = 0;
+const _landColor = new THREE.Color(); // 毎回の塗り替え色 (使い回し)
 
 // ---- カラールーレット: 落下のたびに塔全体の配色をスロットのように切り替える ----
 let rouletteBusy = false;
@@ -395,20 +396,33 @@ function frame(now) {
             fx.vibrate(Math.min(8 + combo * 2, 28));
           }
         }
-        // 5回に1回、乗った土台を「当たり色」に染める。染まった土台は軌跡として残り、
-        // 「次の当たりはどこ？」という期待でもう一歩進みたくなる (収集感 = ドーパミン)。
+        // 着地するたびに、乗った土台を新しい色へ塗り替える。染まった土台が
+        // 軌跡として残り、登るほど自分だけのカラフルな塔になる (変化 = ドーパミン)。
         landCount++;
-        if (landCount % 5 === 0 && player.standing) {
-          const jackpot = JACKPOT_COLORS[Math.floor(Math.random() * JACKPOT_COLORS.length)];
-          world.recolorOne(player.standing, jackpot);
-          sfx.sparkle();
-          fx.burst(player.pos.x, feetY, player.pos.z, {
-            count: 22, color: jackpot, speed: 3.2, up: 2.2,
-            gravity: 7, life: 0.8, spread: 0.4,
-          });
-          fx.glow(jackpot, 0.55);
-          fx.vibrate(18);
-          ui.floatReward('✨', `#${jackpot.toString(16).padStart(6, '0')}`);
+        if (player.standing) {
+          if (landCount % 5 === 0) {
+            // 5回に1回は特大の「当たり」演出 (ネオン色 + キラッ + ✨ポップ)
+            const jackpot = JACKPOT_COLORS[Math.floor(Math.random() * JACKPOT_COLORS.length)];
+            world.recolorOne(player.standing, jackpot);
+            sfx.sparkle();
+            fx.burst(player.pos.x, feetY, player.pos.z, {
+              count: 22, color: jackpot, speed: 3.2, up: 2.2,
+              gravity: 7, life: 0.8, spread: 0.4,
+            });
+            fx.glow(jackpot, 0.55);
+            fx.vibrate(18);
+            ui.floatReward('✨', `#${jackpot.toString(16).padStart(6, '0')}`);
+          } else {
+            // 毎回: ランダムな鮮やか色へ。小さな同色バースト + ほのかな環境光で彩る
+            _landColor.setHSL(Math.random(), 0.72, 0.58);
+            const hex = _landColor.getHex();
+            world.recolorOne(player.standing, hex);
+            fx.burst(player.pos.x, feetY, player.pos.z, {
+              count: 8, color: hex, speed: 1.8, up: 1.2,
+              gravity: 7, life: 0.5, spread: 0.3,
+            });
+            fx.glow(hex, 0.22);
+          }
         }
       } else if (ev.t === 'bounce') {
         // 他プレイヤーの頭を踏んで跳ねた

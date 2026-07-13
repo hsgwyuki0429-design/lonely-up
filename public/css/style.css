@@ -122,6 +122,21 @@ html, body {
   transition: opacity 0.03s; /* 光る瞬間は一瞬で */
 }
 
+/* 環境光: 画面の縁からその色の光がぼわっと差し込み、ゆっくり引く */
+#glow {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 55;
+  mix-blend-mode: screen;
+  transition: opacity 0.55s ease-out; /* 引くときはゆっくり (余韻) */
+}
+#glow.show {
+  opacity: 1;
+  transition: opacity 0.05s ease-out; /* 差し込む瞬間は素早く */
+}
+
 #combo {
   position: absolute;
   top: 19%;
@@ -135,10 +150,42 @@ html, body {
   white-space: nowrap;
 }
 #combo .combolabel { font-size: 0.5em; margin-left: 5px; opacity: 0.85; }
-#combo.pop { animation: combopop 0.32s cubic-bezier(0.2, 2.4, 0.4, 1); }
+#combo.pop { animation: combopop 0.42s cubic-bezier(0.18, 2.8, 0.32, 1); }
 @keyframes combopop {
-  from { transform: translateX(-50%) scale(1.75); }
-  to { transform: translateX(-50%) scale(1); }
+  0% { transform: translateX(-50%) scale(2); }
+  55% { transform: translateX(-50%) scale(0.9); } /* 少し行き過ぎて戻る (バウンド) */
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+/* ===== 報酬ポップアップ (画面手前へ飛び出してバウンドし、上へ消える) ===== */
+#rewards {
+  position: absolute;
+  top: 27%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.reward {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -50%);
+  font-weight: 900;
+  font-size: 30px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  will-change: transform, opacity;
+  animation: rewardpop 0.85s cubic-bezier(0.2, 1.5, 0.35, 1) forwards;
+}
+.reward.big { font-size: 46px; }
+@keyframes rewardpop {
+  0%   { transform: translate(calc(-50% + var(--dx, 0%)), 10px) scale(0.3); opacity: 0; }
+  22%  { transform: translate(calc(-50% + var(--dx, 0%)), -6px) scale(1.25); opacity: 1; } /* 飛び出す */
+  38%  { transform: translate(calc(-50% + var(--dx, 0%)), 0px) scale(0.95); opacity: 1; }  /* バウンド */
+  52%  { transform: translate(calc(-50% + var(--dx, 0%)), -3px) scale(1.05); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx, 0%)), -60px) scale(0.9); opacity: 0; } /* 上へ消える */
 }
 
 #height.pop { animation: heightpop 0.5s cubic-bezier(0.2, 2, 0.4, 1); }

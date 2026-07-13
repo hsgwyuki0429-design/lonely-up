@@ -290,6 +290,8 @@ let tPrevFrame = Date.now() / 1000;
 
 // コンボ数に応じたピッチ倍率 (音が上がっていく = 気持ちいい)
 const comboRate = () => 1 + Math.min(combo, 12) * 0.04;
+// 環境光・シェイク用のコンボ色 (UI.comboColor と対応: 黄 → 橙 → 赤熱)
+const comboGlowHex = (n) => (n >= 9 ? 0xff5b5b : n >= 5 ? 0xff9f43 : 0xffd166);
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -347,8 +349,20 @@ function frame(now) {
           combo++;
           comboTopY = ev.topY;
           if (combo >= 2) {
-            sfx.combo(combo);
-            ui.showCombo(combo);
+            sfx.combo(combo);          // 聴覚の階段
+            ui.showCombo(combo);       // 過熱するカウンター + 飛び出す報酬ポップ
+            // 質量感のある破片: 乗った足場の色でチャンクを四方に飛ばす。
+            // コンボが伸びるほど数・勢いが増し、重力で落ちていく余韻を残す。
+            const chunkColor = player.standing?.colorHex ?? 0xffd166;
+            fx.burst(player.pos.x, feetY, player.pos.z, {
+              count: Math.min(6 + combo * 2, 26), color: chunkColor,
+              speed: 2 + combo * 0.18, up: 1.5, gravity: 9,
+              life: 0.6 + Math.min(combo, 10) * 0.02, spread: 0.38,
+            });
+            // 環境光 + コンボに比例したシェイク & 振動 (画面全体の共鳴)
+            fx.glow(comboGlowHex(combo), Math.min(0.22 + combo * 0.05, 0.7));
+            fx.shake(Math.min(0.1 + combo * 0.03, 0.4));
+            fx.vibrate(Math.min(8 + combo * 2, 28));
           }
         }
       } else if (ev.t === 'bounce') {
@@ -381,9 +395,11 @@ function frame(now) {
     // マイルストーン (ヒットストップで「タメ」を作り、金色の火花を散らす)
     if (player.pos.y >= nextMilestone && state === 'play') {
       ui.toast(`${nextMilestone}m 到達!`);
+      ui.floatReward(`${nextMilestone}m`, '#ffd166', true); // 大きくバウンドする報酬ポップ
       sfx.milestone();
       fx.hitStop(0.12);
       fx.shake(0.35);
+      fx.glow(0xffe08a, 0.75); // 金色の環境光でリッチさを底上げ
       fx.vibrate(30);
       fx.burst(player.pos.x, player.pos.y, player.pos.z, {
         count: 28, color: 0xffd166, speed: 4, up: 2.5,
@@ -409,6 +425,7 @@ function frame(now) {
       // 登頂の瞬間: 長めのヒットストップ + 紙吹雪
       fx.hitStop(0.28);
       fx.shake(0.5);
+      fx.glow(0xffe08a, 0.85);
       fx.vibrate([40, 60, 40, 60, 120]);
       const confetti = [0xff6b6b, 0xffd166, 0x8ce99a, 0x74c0fc, 0xb197fc];
       confetti.forEach((c, i) => {
@@ -448,8 +465,9 @@ requestAnimationFrame(frame);
 // ?debug 付きで開いた時のみ内部オブジェクトを公開 (動作検証用)
 if (location.search.includes('debug')) {
   window.__game = {
-    player, world, net, camera, THREE,
+    player, world, net, camera, THREE, ui, fx, sfx,
     get state() { return state; },
     get camYaw() { return camYaw; },
+    get combo() { return combo; },
   };
 }

@@ -1,6 +1,6 @@
 {
   "name": "lonely-up",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "private": true,
   "description": "LONELY UP - mobile-first vertical climbing game with world ranking & online play (Supabase + Render)",
   "type": "module",

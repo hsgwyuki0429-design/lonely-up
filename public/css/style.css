@@ -251,6 +251,20 @@ html, body {
   text-align: left;
 }
 
+.setting {
+  width: 100%;
+  font-size: 12px;
+  opacity: 0.9;
+  text-align: left;
+}
+.checkrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.checkrow input { width: 16px; height: 16px; accent-color: #ff9f43; }
+
 .netstatus { font-size: 11px; opacity: 0.55; }
 
 /* バージョン表示: 画面左下に常時表示 (デプロイ反映の目視確認用) */

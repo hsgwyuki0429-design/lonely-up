@@ -140,9 +140,10 @@ export class Player {
     this.coyote = this.grounded ? C.COYOTE_TIME : Math.max(this.coyote - dt, 0);
     this.jumpBuffer = Math.max(this.jumpBuffer - dt, 0);
     if (input.consumeJump()) this.jumpBuffer = C.JUMP_BUFFER;
-    // 直近でスティックを倒して走っていたか。倒している間は満タン、離しても少しの間だけ残る。
+    // 直近でスティックを倒して動いていたか。倒している間は満タン、離しても少しの間だけ残る。
     // 「端でジャンプしようとスティックを離した瞬間に足場から出た」ときの空振りを防ぐための猶予。
-    if (mag > C.ONE_HAND_AUTOJUMP_MAG) this.runT = C.ONE_HAND_AUTOJUMP_GRACE;
+    // しきい値は低め (デッドゾーン超え＝動く意思あり)。ゆっくり歩いて端から出ても空振りしない。
+    if (mag > C.ONE_HAND_AUTOJUMP_ARM) this.runT = C.ONE_HAND_AUTOJUMP_GRACE;
     else this.runT = Math.max(this.runT - dt, 0);
 
     // 走ったまま足場の端から出たら自動ジャンプ (片手ではスティックを倒しながら

@@ -13,6 +13,25 @@ const ZONES = [
 
 const BUCKET = 6; // 縦方向の衝突判定バケットサイズ (m)
 
+// カラールーレットのテーマ。落下のたびに塔全体をこのいずれかの配色へ塗り替える。
+// 毎回まっさらな見た目になり、「次はどの色？」という新奇性がドーパミンを生む。
+const THEMES = [
+  { jp: 'フォレスト', plat: [0x7dc46b, 0x8ed07c, 0x5fae52], accent: 0x3f7d36 },
+  { jp: 'キャンディ', plat: [0xff8fc7, 0xffa9d4, 0xf46fb0], accent: 0xc74e8f },
+  { jp: 'オーシャン', plat: [0x4ec5e0, 0x6fd6ea, 0x37a8cf], accent: 0x2b7fa0 },
+  { jp: 'サンセット', plat: [0xff9f43, 0xffb86b, 0xff7b54], accent: 0xd85f3a },
+  { jp: 'グレープ', plat: [0xb197fc, 0xc3adff, 0x9b7bf0], accent: 0x7256c9 },
+  { jp: 'ゴールド', plat: [0xffd166, 0xffe08a, 0xf5b942], accent: 0xc99a2e },
+  { jp: 'ミント', plat: [0x63e6be, 0x8ff0d4, 0x38d9a9], accent: 0x1fa885 },
+  { jp: 'ラヴァ', plat: [0xff6b6b, 0xff8f8f, 0xe64545], accent: 0xb52d2d },
+  { jp: 'レインボー', rainbow: true, accent: 0xffffff },
+];
+
+// 「5回に1回」着地した土台を染める当たり色 (ネオン系で目立たせる)
+export const JACKPOT_COLORS = [
+  0xff4d6d, 0xffd23f, 0x4dd4ff, 0x9d4dff, 0x3ddc84, 0xff7ac4, 0xff9f1c,
+];
+
 function zonePair(h) {
   let i = 0;
   while (i < ZONES.length - 1 && h >= ZONES[i + 1].h) i++;
@@ -99,28 +118,23 @@ export class World {
     const q = new THREE.Quaternion();
     const s = new THREE.Vector3();
     const v = new THREE.Vector3();
-    const color = new THREE.Color();
     const crand = mulberry32(CONFIG.SEED ^ 0x9e3779b9);
 
+    // 位置と、テーマ着色に使う乱数だけをここで確定させる (色は applyTheme が決める)
     statics.forEach((p, i) => {
       v.set(p.x, p.y, p.z);
       s.set(p.hx * 2, p.hy * 2, p.hz * 2);
       inst.setMatrixAt(i, m.compose(v, q, s));
-      const { a } = zonePair(Math.max(p.y, 0));
-      if (p.kind === 'goal') color.setHex(0xffd166);
-      else if (p.kind === 'rest') color.setHex(a.accent);
-      else {
-        color.setHex(a.plat[Math.floor(crand() * a.plat.length)]);
-        color.offsetHSL(0, 0, (crand() - 0.5) * 0.06);
-      }
-      inst.setColorAt(i, color);
-      p.colorHex = color.getHex(); // 着地時の破片をこの足場の色で散らすため保存
+      p.instIndex = i;      // 個別の足場を後から塗り替えるための添字
+      p.rollA = crand();    // パレット内のどの色か
+      p.rollB = crand();    // 明度の個体差
     });
     inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    this.staticInst = inst;
+    this.staticList = statics;
     this.scene.add(inst);
 
-    // 動く足場は個別メッシュ
+    // 動く足場は個別メッシュ (テーマ着色の対象外。水色 = 動く足場という手がかりを保つ)
     for (const p of this.platforms) {
       if (!p.move) continue;
       const mesh = new THREE.Mesh(
@@ -128,10 +142,13 @@ export class World {
         new THREE.MeshLambertMaterial({ color: 0x66d9e8 })
       );
       p.colorHex = 0x66d9e8; // 動く足場の破片色
+      p.meshRef = mesh;
       mesh.position.set(p.x, p.y, p.z);
       this.scene.add(mesh);
       this.movingMeshes.push({ p, mesh });
     }
+
+    this.applyTheme(0); // 初期テーマ (フォレスト) で全足場を着色
 
     // 休憩所の目印リング & ゴール演出
     for (const p of this.platforms) {
@@ -163,6 +180,59 @@ export class World {
         beam.position.set(p.x, p.y + 30, p.z);
         this.scene.add(beam);
       }
+    }
+  }
+
+  // ================== カラールーレット (足場の着色) ==================
+  get themeCount() {
+    return THEMES.length;
+  }
+
+  themeName(idx) {
+    return THEMES[((idx % THEMES.length) + THEMES.length) % THEMES.length].jp;
+  }
+
+  // 足場1枚の色をテーマから決める
+  _colorFor(p, theme, out) {
+    if (p.kind === 'goal') return out.setHex(0xffd166); // ゴールは常に金
+    if (theme.rainbow) {
+      if (p.kind === 'rest') return out.setHex(0xffffff);
+      return out.setHSL(((p.instIndex ?? 0) * 0.11) % 1, 0.62, 0.62); // 段ごとに虹色
+    }
+    if (p.kind === 'rest') return out.setHex(theme.accent);
+    out.setHex(theme.plat[Math.floor((p.rollA ?? 0) * theme.plat.length)]);
+    out.offsetHSL(0, 0, ((p.rollB ?? 0.5) - 0.5) * 0.06);
+    return out;
+  }
+
+  // 塔全体を指定テーマへ塗り替える (静止足場のみ。動く足場は水色のまま)
+  applyTheme(idx) {
+    idx = ((idx % THEMES.length) + THEMES.length) % THEMES.length;
+    this.themeIndex = idx;
+    const theme = THEMES[idx];
+    const inst = this.staticInst;
+    const c = this._ca;
+    for (const p of this.staticList) {
+      this._colorFor(p, theme, c);
+      inst.setColorAt(p.instIndex, c);
+      p.colorHex = c.getHex();
+    }
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    return theme;
+  }
+
+  // 足場1枚だけを指定色へ (「5回に1回」の当たり演出用)。着色は永続する
+  recolorOne(p, hex) {
+    if (!p) return;
+    p.colorHex = hex;
+    this._ca.setHex(hex);
+    if (p.move && p.meshRef) {
+      p.meshRef.material.color.copy(this._ca);
+      return;
+    }
+    if (p.instIndex != null && this.staticInst) {
+      this.staticInst.setColorAt(p.instIndex, this._ca);
+      if (this.staticInst.instanceColor) this.staticInst.instanceColor.needsUpdate = true;
     }
   }
 

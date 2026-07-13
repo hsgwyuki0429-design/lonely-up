@@ -94,6 +94,28 @@ class Sfx {
     if (n >= 5) this.noise(0.05, 0.012 + Math.min(n, 20) * 0.001, 5000, 2); // 高コンボのキラッ
   }
 
+  // 「当たり」土台のキラッ (5回に1回の着地演出)
+  sparkle() {
+    this.blip(1245, 0.09, 'triangle', 0.05, 500);
+    this.blip(1865, 0.07, 'sine', 0.025);
+    this.noise(0.07, 0.02, 6500, 2.2);
+  }
+
+  // カラールーレットの回転音 (1コマごとのカチッ)
+  rouletteTick() {
+    this.blip(900, 0.03, 'square', 0.028);
+  }
+
+  // ルーレットが止まった瞬間のファンファーレ
+  rouletteStop() {
+    [784, 1046, 1318].forEach((f, i) =>
+      setTimeout(() => {
+        this.blip(f, 0.16, 'triangle', 0.06);
+        this.blip(f * 2, 0.1, 'sine', 0.02);
+      }, i * 70));
+    this.noise(0.12, 0.03, 5000, 2);
+  }
+
   fall() {
     this.blip(300, 0.5, 'sawtooth', 0.055, -260); // 落ちていく「ヒュー」
     this.blip(70, 0.35, 'sine', 0.1, -30);        // 鈍い「ドン」

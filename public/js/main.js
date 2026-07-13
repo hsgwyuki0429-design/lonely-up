@@ -49,6 +49,16 @@ const me = {
 localStorage.setItem(STORAGE.COLOR, String(me.color));
 player.setColor(PLAYER_COLORS[me.color % PLAYER_COLORS.length]);
 
+// 「下寄り表示」トグル (即時反映・保存)。自機を画面下1/3あたりに置き、上を広く見せる
+const lowCam = document.getElementById('lowCam');
+function applyLowCam(on) {
+  CONFIG.CAM_LOW_SUBJECT = !!on;
+  lowCam.checked = !!on;
+  localStorage.setItem(STORAGE.LOW_CAM, on ? '1' : '0');
+}
+applyLowCam(localStorage.getItem(STORAGE.LOW_CAM) === '1');
+lowCam.addEventListener('change', (e) => applyLowCam(e.target.checked));
+
 // バージョン表示 (デプロイ反映の目視確認用)
 document.getElementById('appVer').textContent = `v${VERSION}`;
 
@@ -263,7 +273,10 @@ function updateCamera(dt) {
   );
   const k = 1 - Math.exp(-dt * 8);
   camera.position.lerp(camPos, k);
-  camTarget.set(player.pos.x, player.pos.y + 1.1, player.pos.z);
+  // 「下寄り表示」版: 視点を上へずらしてカメラを上に向け、自機を画面下1/3あたりに置く。
+  // 上方向 (これから登る先) が広く見える。
+  const lookUp = CONFIG.CAM_LOW_SUBJECT ? CONFIG.CAM_LOW_LOOKUP : 0;
+  camTarget.set(player.pos.x, player.pos.y + 1.1 + lookUp, player.pos.z);
   camera.lookAt(camTarget);
 }
 camera.position.set(0, 4, 10);
@@ -435,7 +448,7 @@ requestAnimationFrame(frame);
 // ?debug 付きで開いた時のみ内部オブジェクトを公開 (動作検証用)
 if (location.search.includes('debug')) {
   window.__game = {
-    player, world, net,
+    player, world, net, camera, THREE,
     get state() { return state; },
     get camYaw() { return camYaw; },
   };

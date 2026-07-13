@@ -23,7 +23,15 @@ export class UI {
       toasts: document.getElementById('toasts'),
       combo: document.getElementById('combo'),
       comboNum: document.getElementById('comboNum'),
+      rewards: document.getElementById('rewards'),
     };
+  }
+
+  // コンボ数に応じて過熱していく色 (黄 → 橙 → 赤熱)
+  comboColor(n) {
+    if (n >= 9) return '#ff5b5b';
+    if (n >= 5) return '#ff9f43';
+    return '#ffd166';
   }
 
   showTitle(online) {
@@ -47,19 +55,42 @@ export class UI {
     this.el.online.textContent = String(online);
   }
 
-  // コンボ表示: 数が増えるほど大きくポップする
+  // コンボ表示: 数が増えるほど大きく・熱く・強くバウンドする
   showCombo(n) {
     this.el.comboNum.textContent = String(n);
     const c = this.el.combo;
+    const col = this.comboColor(n);
     c.classList.remove('hidden');
-    c.style.fontSize = `${Math.min(20 + n * 1.4, 38)}px`;
+    c.style.fontSize = `${Math.min(20 + n * 1.6, 46)}px`;
+    c.style.color = col;
+    // 高コンボほど光背 (グロウ) を強める
+    const glow = Math.min(6 + n * 2, 30);
+    c.style.textShadow = `0 2px 10px rgba(0,0,0,0.5), 0 0 ${glow}px ${col}`;
     c.classList.remove('pop');
     void c.offsetWidth; // アニメーション再トリガー
     c.classList.add('pop');
+    // 手前へ飛び出す報酬ポップ (2コンボ以上のとき)
+    if (n >= 2) this.floatReward(`${n}×`, col);
   }
 
   hideCombo() {
     this.el.combo.classList.add('hidden');
+  }
+
+  // 報酬の視覚化: テキストが画面手前に飛び出し、少しバウンドして上へ消える。
+  // 行動の価値をタイムラグゼロで脳に突きつける (自己効力感の刺激)。
+  floatReward(text, color = '#ffd166', big = false) {
+    if (!this.el.rewards) return;
+    const el = document.createElement('div');
+    el.className = 'reward' + (big ? ' big' : '');
+    el.textContent = text;
+    el.style.color = color;
+    el.style.textShadow = `0 2px 12px rgba(0,0,0,0.55), 0 0 18px ${color}`;
+    // 中央から少し左右にばらけさせ、連続しても重ならないようにする
+    el.style.setProperty('--dx', `${(Math.random() * 2 - 1) * 12}%`);
+    this.el.rewards.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+    while (this.el.rewards.children.length > 8) this.el.rewards.firstChild.remove();
   }
 
   // 高度表示を一瞬拡大 (マイルストーン到達時)

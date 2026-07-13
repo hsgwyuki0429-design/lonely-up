@@ -114,6 +114,7 @@ export class World {
         color.offsetHSL(0, 0, (crand() - 0.5) * 0.06);
       }
       inst.setColorAt(i, color);
+      p.colorHex = color.getHex(); // 着地時の破片をこの足場の色で散らすため保存
     });
     inst.instanceMatrix.needsUpdate = true;
     if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
@@ -126,6 +127,7 @@ export class World {
         new THREE.BoxGeometry(p.hx * 2, p.hy * 2, p.hz * 2),
         new THREE.MeshLambertMaterial({ color: 0x66d9e8 })
       );
+      p.colorHex = 0x66d9e8; // 動く足場の破片色
       mesh.position.set(p.x, p.y, p.z);
       this.scene.add(mesh);
       this.movingMeshes.push({ p, mesh });

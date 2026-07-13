@@ -32,7 +32,7 @@ export class FX {
     this.points = new THREE.Points(
       geo,
       new THREE.PointsMaterial({
-        size: 0.17, vertexColors: true, transparent: true,
+        size: 0.19, vertexColors: true, transparent: true,
         opacity: 0.95, depthWrite: false,
       })
     );
@@ -41,6 +41,8 @@ export class FX {
 
     this.flashEl = document.getElementById('flash');
     this._flashTimer = 0;
+    this.glowEl = document.getElementById('glow');
+    this._glowTimer = 0;
     this._c = new THREE.Color();
   }
 
@@ -96,6 +98,24 @@ export class FX {
     this.flashEl.classList.add('show');
     clearTimeout(this._flashTimer);
     this._flashTimer = setTimeout(() => this.flashEl.classList.remove('show'), ms);
+  }
+
+  // ---- 環境光 (アンビエントグロウ) ----
+  // 画面の縁からその色の光がぼわっと差し込み、ゆっくり引く。エフェクトの「まぶしさ」を
+  // マス目の外へ滲ませ、ゲーム空間全体のエネルギー量を伝える。color は 0xRRGGBB。
+  glow(color, intensity = 0.5) {
+    if (!this.glowEl) return;
+    this._c.setHex(color);
+    const r = Math.round(this._c.r * 255);
+    const g = Math.round(this._c.g * 255);
+    const b = Math.round(this._c.b * 255);
+    const a = Math.min(intensity, 1);
+    this.glowEl.style.background =
+      `radial-gradient(ellipse at 50% 46%, rgba(${r},${g},${b},0) 42%, ` +
+      `rgba(${r},${g},${b},${(a * 0.55).toFixed(3)}) 78%, rgba(${r},${g},${b},${a.toFixed(3)}) 100%)`;
+    this.glowEl.classList.add('show');
+    clearTimeout(this._glowTimer);
+    this._glowTimer = setTimeout(() => this.glowEl.classList.remove('show'), 60);
   }
 
   // ---- バイブレーション ----

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG, STORAGE, PLAYER_COLORS, VERSION } from './config.js';
-import { World } from './world.js';
+import { World, JACKPOT_COLORS } from './world.js';
 import { Player } from './player.js';
 import { Input } from './input.js';
 import { Ghosts } from './ghosts.js';
@@ -293,6 +293,36 @@ const comboRate = () => 1 + Math.min(combo, 12) * 0.04;
 // 環境光・シェイク用のコンボ色 (UI.comboColor と対応: 黄 → 橙 → 赤熱)
 const comboGlowHex = (n) => (n >= 9 ? 0xff5b5b : n >= 5 ? 0xff9f43 : 0xffd166);
 
+// 着地の通算回数。5回に1回、乗った土台が「当たり色」に染まる (収集感 = ドーパミン)
+let landCount = 0;
+
+// ---- カラールーレット: 落下のたびに塔全体の配色をスロットのように切り替える ----
+let rouletteBusy = false;
+function spinColorRoulette() {
+  if (rouletteBusy) return;
+  rouletteBusy = true;
+  const N = world.themeCount;
+  const final = (world.themeIndex + 1 + Math.floor(Math.random() * (N - 1))) % N; // 直前と必ず変える
+  // だんだん間隔が延びる = スロットが減速して止まる感覚
+  const steps = [0, 70, 140, 215, 300, 400, 520, 670, 850];
+  steps.forEach((ms, i) => {
+    setTimeout(() => {
+      const last = i === steps.length - 1;
+      world.applyTheme(last ? final : Math.floor(Math.random() * N));
+      if (last) {
+        sfx.rouletteStop();
+        fx.glow(0xffe08a, 0.7);
+        fx.flash('rgba(255,255,255,0.16)', 90);
+        ui.floatReward(world.themeName(final), '#ffe08a', true);
+        rouletteBusy = false;
+      } else {
+        sfx.rouletteTick();
+        fx.glow(world.staticList[0]?.colorHex ?? 0xffffff, 0.28);
+      }
+    }, ms);
+  });
+}
+
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = Math.min((now - last) / 1000, 0.1);
@@ -365,6 +395,21 @@ function frame(now) {
             fx.vibrate(Math.min(8 + combo * 2, 28));
           }
         }
+        // 5回に1回、乗った土台を「当たり色」に染める。染まった土台は軌跡として残り、
+        // 「次の当たりはどこ？」という期待でもう一歩進みたくなる (収集感 = ドーパミン)。
+        landCount++;
+        if (landCount % 5 === 0 && player.standing) {
+          const jackpot = JACKPOT_COLORS[Math.floor(Math.random() * JACKPOT_COLORS.length)];
+          world.recolorOne(player.standing, jackpot);
+          sfx.sparkle();
+          fx.burst(player.pos.x, feetY, player.pos.z, {
+            count: 22, color: jackpot, speed: 3.2, up: 2.2,
+            gravity: 7, life: 0.8, spread: 0.4,
+          });
+          fx.glow(jackpot, 0.55);
+          fx.vibrate(18);
+          ui.floatReward('✨', `#${jackpot.toString(16).padStart(6, '0')}`);
+        }
       } else if (ev.t === 'bounce') {
         // 他プレイヤーの頭を踏んで跳ねた
         sfx.jump(1.35);
@@ -382,6 +427,8 @@ function frame(now) {
         fx.flash('rgba(255, 60, 60, 0.32)', 220);
         fx.vibrate([60, 40, 60]);
         resetCombo();
+        // 落下のたびに塔全体の配色をルーレットで一新 (失敗を「新しい塔」の楽しみに変える)
+        spinColorRoulette();
       }
     }
     player.events.length = 0;

@@ -186,8 +186,10 @@ export class Player {
         this.grounded = true;
         this.standing = p;
         landed = true;
-      } else if (this.vel.y > 0 && prevFeet <= b.minY) {
-        // 下面に頭をぶつけた
+      } else if (this.vel.y > 0 && prevFeet + C.PLAYER_HALF_H * 2 <= b.minY) {
+        // 下面に頭をぶつけた (直前フレームで「頭」が下面より下にあった時だけ)。
+        // 足元で判定すると、横に並んだブロックに体が重なった状態でジャンプした瞬間
+        // 「頭ぶつけ」と誤判定され、体高ぶん下へスナップ → 足場を突き抜けて落下する
         this.pos.y = b.minY - C.PLAYER_HALF_H;
         this.vel.y = 0;
       }
@@ -201,6 +203,7 @@ export class Player {
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
     let wallTop = null; // 横からぶつかったブロックの上面 (自動ジャンプ判定に使う)
+    let wallAuto = false; // 動く足場が絡む壁接触 → 入力が無くても自動ジャンプで退避
     for (const p of near) {
       const b = this.world.aabb(p, t, tmpBox);
       if (!this.aabbOverlap(b)) continue;
@@ -224,6 +227,9 @@ export class Player {
         this.vel.z = 0;
       }
       wallTop = Math.max(wallTop ?? -Infinity, b.maxY);
+      // 動く足場に横から押されている / 動く足場に乗ったまま壁に運ばれている。
+      // 押し出しで足場から突き落とされる前に、入力が無くても自動ジャンプで上に乗せる
+      if (p.move || (this.standing && this.standing.move)) wallAuto = true;
     }
 
     // 足場に立ったまま隣のブロックに走り込んで押し付けられたら自動ジャンプ
@@ -231,7 +237,7 @@ export class Player {
     // 端の自動ジャンプが発動しないため。ジャンプで届く高さの相手にだけ発動する
     if (
       this.grounded && wallTop !== null &&
-      mag > C.ONE_HAND_AUTOJUMP_MAG
+      (mag > C.ONE_HAND_AUTOJUMP_MAG || wallAuto)
     ) {
       const rise = wallTop - (this.pos.y - C.PLAYER_HALF_H);
       const jumpH = (C.JUMP_VEL * C.JUMP_VEL) / (2 * C.GRAVITY); // 最大ジャンプ高 ≈ 2.09m

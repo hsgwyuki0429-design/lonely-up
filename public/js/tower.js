@@ -86,6 +86,34 @@ export function generateTower(seed = CONFIG.SEED) {
       nz = prev.z + (dz / dist) * want;
     }
 
+    // 動く足場の可動域が「下の足場に立つプレイヤーの体」を薙ぎ払わないように補正。
+    // 掃引後の箱が立ち位置に重なると、側面の押し出しがプレイヤーを足場から
+    // 突き落としてしまう (細いビームでは即落下)。すき間が保てる軸を選び、
+    // それでも足りなければ振幅を絞る。絞りきれなければ静止足場にする。
+    if (move) {
+      const CLEAR = CONFIG.PLAYER_R * 2 + 0.25;      // プレイヤーの直径 + 余裕
+      const BODY_H = CONFIG.PLAYER_HALF_H * 2 + 0.1; // 立っている人の体の高さ
+      const bottom = y - hy * 2;
+      let ampX = move.amp, ampZ = move.amp; // 各軸で許される振幅
+      for (let i = Math.max(platforms.length - 5, 0); i < platforms.length; i++) {
+        const q = platforms[i];
+        const qTop = q.y + q.hy;
+        if (qTop >= y || qTop + BODY_H <= bottom) continue; // 体と高さが重ならない
+        const sepX = Math.abs(nx - q.x) - (hx + q.hx);
+        const sepZ = Math.abs(nz - q.z) - (hz + q.hz);
+        if (sepZ < CLEAR) ampX = Math.min(ampX, sepX - CLEAR); // x往復は x のすき間で守る
+        if (sepX < CLEAR) ampZ = Math.min(ampZ, sepZ - CLEAR); // z往復は z のすき間で守る
+      }
+      const amp = Math.max(ampX, ampZ);
+      if (amp < 0.55) {
+        move = null;
+        kind = 'box';
+      } else {
+        if (ampX !== ampZ) move.axis = ampX > ampZ ? 'x' : 'z';
+        move.amp = Math.min(move.amp, amp);
+      }
+    }
+
     const top = prev.top + dyTop;
     platforms.push({ x: nx, y: top - hy, z: nz, hx, hy, hz, move, kind });
     prev = { x: nx, z: nz, r: rNew, amp: move ? move.amp : 0, top };

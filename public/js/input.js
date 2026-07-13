@@ -27,8 +27,8 @@ export class Input {
     this._joyStart = { t: 0, x: 0, y: 0 };
     this._joyMaxDist = 0;
     this._joyShown = false; // ドラッグと確定するまでスティックを表示しない (タップ時のちらつき防止)
-    this.TAP_MS = 250;      // これより短いタッチはタップ (=ジャンプ) 候補
-    this.TAP_SLOP = 12;     // タッチ開始からこの距離 (px) 以上動いたらドラッグ扱い
+    this.TAP_MS = 300;      // これより短いタッチはタップ (=ジャンプ) 候補
+    this.TAP_SLOP = 16;     // タッチ開始からこの距離 (px) 以上動いたらドラッグ扱い
 
     canvas.addEventListener('pointerdown', (e) => this.onDown(e));
     window.addEventListener('pointermove', (e) => this.onMove(e));

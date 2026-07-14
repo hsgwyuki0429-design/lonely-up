@@ -346,8 +346,10 @@ function frame(now) {
     } else if (player.grounded && player.standing?.move) {
       // ヒットストップ中も動く足場には運ばれる (置き去りで落ちるのを防ぐ)
       const d = world.offset(player.standing, t) - world.offset(player.standing, tPrevFrame);
-      if (player.standing.move.axis === 'x') player.pos.x += d;
-      else player.pos.z += d;
+      const ax = player.standing.move.axis;
+      if (ax === 'x') player.pos.x += d;
+      else if (ax === 'z') player.pos.z += d;
+      else player.pos.y += d;
       player.mesh.position.copy(player.pos);
     }
 
@@ -516,7 +518,7 @@ function frame(now) {
 
   updateCamera(dt);
   ghosts.tick(dt);
-  world.update(t, dt, player.pos.y, renderer, scene);
+  world.update(t, dt, player, renderer, scene);
   fx.update(dt, camera, frozen); // カメラ確定後にシェイクを乗せる
   renderer.render(scene, camera);
   tPrevFrame = t;

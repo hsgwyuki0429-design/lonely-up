@@ -90,27 +90,52 @@ export class World {
     return out;
   }
 
-  // 動く足場の現在の水平オフセット
+  // 動く足場の現在のオフセット。x/z は正弦で往復、y は「最下点=静止位置」から上へ昇降する。
   offset(p, t) {
     if (!p.move) return 0;
-    return Math.sin(t * p.move.speed + p.move.phase) * p.move.amp;
+    const m = p.move;
+    if (m.axis === 'y') return (1 - Math.cos(t * m.speed + m.phase)) * m.amp; // 0〜2·amp (上方向のみ)
+    return Math.sin(t * m.speed + m.phase) * m.amp;
   }
 
   aabb(p, t, out) {
-    let ox = 0, oz = 0;
+    let ox = 0, oy = 0, oz = 0;
     if (p.move) {
       const o = this.offset(p, t);
-      if (p.move.axis === 'x') ox = o; else oz = o;
+      if (p.move.axis === 'x') ox = o;
+      else if (p.move.axis === 'z') oz = o;
+      else oy = o;
     }
     out.minX = p.x + ox - p.hx; out.maxX = p.x + ox + p.hx;
-    out.minY = p.y - p.hy;      out.maxY = p.y + p.hy;
+    out.minY = p.y + oy - p.hy; out.maxY = p.y + oy + p.hy;
     out.minZ = p.z + oz - p.hz; out.maxZ = p.z + oz + p.hz;
     return out;
   }
 
+  // その足場が今「実体として存在する」か (崩れて消えた / 位相で消えている間は false)。
+  // 衝突・接地判定は必ずこれを通し、消えている足場はすり抜ける。
+  isSolid(p, t) {
+    if (p.gone) return false;                     // crumble: 崩れて消滅中
+    if (p.kind === 'phase') return this.phaseSolid(p, t);
+    return true;
+  }
+
+  // 位相足場が「出ている」タイミングか
+  phaseSolid(p, t) {
+    const c = p.phaseCfg;
+    if (!c) return true;
+    const f = ((t / c.period + c.offset) % 1 + 1) % 1;
+    return f < c.onFrac;
+  }
+
   // ================== 見た目 ==================
+  // 個別メッシュで描く足場か (テーマ着色の対象外。色/挙動そのものが手がかりになる)
+  static _isDynamicMesh(p) {
+    return !!p.move || p.kind === 'crumble' || p.kind === 'phase';
+  }
+
   buildMeshes() {
-    const statics = this.platforms.filter((p) => !p.move);
+    const statics = this.platforms.filter((p) => !World._isDynamicMesh(p));
     const geo = new THREE.BoxGeometry(1, 1, 1);
     const mat = new THREE.MeshLambertMaterial();
     const inst = new THREE.InstancedMesh(geo, mat, statics.length);
@@ -134,18 +159,26 @@ export class World {
     this.staticList = statics;
     this.scene.add(inst);
 
-    // 動く足場は個別メッシュ (テーマ着色の対象外。水色 = 動く足場という手がかりを保つ)
+    // 特殊な足場は個別メッシュ (テーマ着色の対象外)。色そのものが種類の手がかり:
+    //   水色=横に動く / 青=上下に動く / 橙=踏むと崩れる / 紫=時間で消える
+    this.crumbleList = [];
+    this.phaseList = [];
     for (const p of this.platforms) {
-      if (!p.move) continue;
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(p.hx * 2, p.hy * 2, p.hz * 2),
-        new THREE.MeshLambertMaterial({ color: 0x66d9e8 })
-      );
-      p.colorHex = 0x66d9e8; // 動く足場の破片色
+      if (!World._isDynamicMesh(p)) continue;
+      let color = 0x66d9e8;
+      if (p.move) color = p.move.axis === 'y' ? 0x4dabf7 : 0x66d9e8;
+      else if (p.kind === 'crumble') color = 0xffa94d;
+      else if (p.kind === 'phase') color = 0xb197fc;
+      const mat = new THREE.MeshLambertMaterial({ color });
+      if (p.kind === 'phase') mat.transparent = true; // 明滅・出現/消滅の演出に使う
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.hx * 2, p.hy * 2, p.hz * 2), mat);
+      p.colorHex = color; // 破片エフェクトの色
       p.meshRef = mesh;
       mesh.position.set(p.x, p.y, p.z);
       this.scene.add(mesh);
-      this.movingMeshes.push({ p, mesh });
+      if (p.move) this.movingMeshes.push({ p, mesh });
+      else if (p.kind === 'crumble') this.crumbleList.push(p);
+      else if (p.kind === 'phase') this.phaseList.push(p);
     }
 
     this.applyTheme(0); // 初期テーマ (フォレスト) で全足場を着色
@@ -226,7 +259,7 @@ export class World {
     if (!p) return;
     p.colorHex = hex;
     this._ca.setHex(hex);
-    if (p.move && p.meshRef) {
+    if (p.meshRef) { // 個別メッシュ (動く/崩れる/位相) はマテリアルを直接染める
       p.meshRef.material.color.copy(this._ca);
       return;
     }
@@ -298,6 +331,7 @@ export class World {
     let best = null;
     const list = this.nearby(y - 10, y + 0.5, this._groundList || (this._groundList = []));
     for (const p of list) {
+      if (!this.isSolid(p, t)) continue;
       const b = this.aabb(p, t, tmpBox);
       if (x > b.minX - 0.1 && x < b.maxX + 0.1 && z > b.minZ - 0.1 && z < b.maxZ + 0.1) {
         if (b.maxY <= y + 0.05 && (best === null || b.maxY > best)) best = b.maxY;
@@ -306,16 +340,19 @@ export class World {
     return best;
   }
 
-  update(t, dt, playerY, renderer, scene) {
+  update(t, dt, player, renderer, scene) {
     this.time = t;
+    const playerY = player.pos.y;
     for (const { p, mesh } of this.movingMeshes) {
       const o = this.offset(p, t);
       mesh.position.set(
         p.x + (p.move.axis === 'x' ? o : 0),
-        p.y,
+        p.y + (p.move.axis === 'y' ? o : 0),
         p.z + (p.move.axis === 'z' ? o : 0)
       );
     }
+    this._updateCrumble(dt, player);
+    this._updatePhase(t);
     if (this.goalRing) this.goalRing.rotation.z = t * 0.6;
 
     // 高度に応じた空の色
@@ -330,6 +367,60 @@ export class World {
       c.userData.ang += c.userData.speed * dt;
       c.position.x = Math.cos(c.userData.ang) * c.userData.rad;
       c.position.z = Math.sin(c.userData.ang) * c.userData.rad;
+    }
+  }
+
+  // 崩れる足場: プレイヤーが乗ると CRUMBLE_DELAY 秒後に消え、CRUMBLE_RESPAWN 秒後に復活。
+  // 消えるまでは小刻みに震わせて「もう落ちる」と伝える。
+  _updateCrumble(dt, player) {
+    const CRUMBLE_DELAY = 0.8;    // 踏んでから崩れるまで
+    const CRUMBLE_RESPAWN = 2.6;  // 消えてから復活するまで
+    for (const p of this.crumbleList) {
+      const mesh = p.meshRef;
+      if (p.gone) {
+        p.respawnT -= dt;
+        if (p.respawnT <= 0) {
+          p.gone = false;
+          p.triggered = false;
+          mesh.visible = true;
+          mesh.position.set(p.x, p.y, p.z);
+        }
+        continue;
+      }
+      if (!p.triggered && player.grounded && player.standing === p) {
+        p.triggered = true;
+        p.crumbleT = CRUMBLE_DELAY;
+      }
+      if (p.triggered) {
+        p.crumbleT -= dt;
+        const k = 1 - Math.max(p.crumbleT, 0) / CRUMBLE_DELAY; // 0→1 で揺れが激しく
+        mesh.position.set(
+          p.x + (Math.random() - 0.5) * 0.08 * k,
+          p.y + (Math.random() - 0.5) * 0.08 * k,
+          p.z + (Math.random() - 0.5) * 0.08 * k
+        );
+        if (p.crumbleT <= 0) {
+          p.gone = true;
+          p.respawnT = CRUMBLE_RESPAWN;
+          mesh.visible = false;
+        }
+      }
+    }
+  }
+
+  // 位相足場: 出ている間だけ実体化。消える直前に明滅させて予告する。
+  _updatePhase(t) {
+    for (const p of this.phaseList) {
+      const c = p.phaseCfg;
+      const f = ((t / c.period + c.offset) % 1 + 1) % 1;
+      const mesh = p.meshRef;
+      if (f < c.onFrac) {
+        mesh.visible = true;
+        const rem = (c.onFrac - f) * c.period; // 消えるまでの残り秒
+        mesh.material.opacity = rem < 0.6 ? 0.35 + 0.65 * Math.abs(Math.sin(t * 18)) : 1;
+      } else {
+        mesh.visible = false;
+      }
     }
   }
 }

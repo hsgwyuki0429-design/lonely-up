@@ -106,11 +106,13 @@ export class Player {
       this.events.push({ t: 'bow' });
     }
 
-    // --- 乗っている動く足場に運ばれる ---
+    // --- 乗っている動く足場に運ばれる (横移動 or 上下のエレベーター) ---
     if (this.grounded && this.standing && this.standing.move) {
       const d = this.world.offset(this.standing, t) - this.world.offset(this.standing, tPrev);
-      if (this.standing.move.axis === 'x') this.pos.x += d;
-      else this.pos.z += d;
+      const ax = this.standing.move.axis;
+      if (ax === 'x') this.pos.x += d;
+      else if (ax === 'z') this.pos.z += d;
+      else this.pos.y += d; // 上下に動く足場に乗せて運ぶ
     }
 
     // --- 入力 → カメラ基準の移動ベクトル ---
@@ -172,6 +174,7 @@ export class Player {
 
     let landed = false;
     for (const p of near) {
+      if (!this.world.isSolid(p, t)) continue; // 消えている足場はすり抜ける
       const b = this.world.aabb(p, t, tmpBox);
       if (!this.aabbOverlap(b)) continue;
       if (this.vel.y <= 0 && prevFeet >= b.maxY - 0.25) {
@@ -205,6 +208,7 @@ export class Player {
     let wallTop = null; // 横からぶつかったブロックの上面 (自動ジャンプ判定に使う)
     let wallAuto = false; // 動く足場が絡む壁接触 → 入力が無くても自動ジャンプで退避
     for (const p of near) {
+      if (!this.world.isSolid(p, t)) continue; // 消えている足場はすり抜ける
       const b = this.world.aabb(p, t, tmpBox);
       if (!this.aabbOverlap(b)) continue;
       if (this.pos.y - C.PLAYER_HALF_H > b.maxY - 0.3) continue; // 上に立っている
@@ -252,6 +256,7 @@ export class Player {
       let supported = false;
       const feet = this.pos.y - C.PLAYER_HALF_H;
       for (const p of near) {
+        if (!this.world.isSolid(p, t)) continue; // 消えている足場では支えられない
         const b = this.world.aabb(p, t, tmpBox);
         if (
           this.pos.x + C.PLAYER_R > b.minX && this.pos.x - C.PLAYER_R < b.maxX &&

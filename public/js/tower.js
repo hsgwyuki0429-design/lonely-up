@@ -30,31 +30,59 @@ export function generateTower(seed = CONFIG.SEED) {
 
     let kind = 'box';
     let move = null;
+    let phaseCfg = null;
     let hx = 1.1 + rand() * 0.9;
     let hz = 1.1 + rand() * 0.9;
     let hy = 0.3;
     const roll = rand();
     const y = prev.top + dyTop; // ここでは仮に上面高度として扱い、後で中心に直す
+    // 高度係数 (0 = 地上, 1 = ゴール)。上へ行くほど足場を小さく・動きを速くする
+    const hFactor = clamp(y / CONFIG.GOAL_HEIGHT, 0, 1);
 
     if (y - lastRestY > 42) {
       kind = 'rest';
       hx = hz = 2.7;
       hy = 0.45;
       lastRestY = y;
-    } else if (roll < 0.16 && y > 8) {
-      // 動く足場: 序盤 (8m〜) から登場。低所では振幅・速度を控えめに
+    } else if (roll < 0.17 && y > 8) {
+      // 動く足場: 序盤 (8m〜) から登場。低所では振幅・速度を控えめに。
+      // 高所ほど速く動き、一部は「上下」に昇降するエレベーター足場になる。
       const ease = clamp((y - 8) / 40, 0, 1);
+      const speedBoost = 1 + 1.3 * hFactor; // 高所ほど速い
       kind = 'move';
       hx = hz = 1.15;
-      move = {
-        axis: rand() < 0.5 ? 'x' : 'z',
-        amp: 1.1 + rand() * (0.8 + 0.6 * ease),
-        speed: 0.5 + rand() * (0.4 + 0.3 * ease),
-        phase: rand() * Math.PI * 2,
+      if (y > 30 && rand() < 0.4) {
+        // 上下に動く足場: 最下点が「届く高さ」= 静止足場と同じ。そこから上へ昇降する。
+        move = {
+          axis: 'y',
+          amp: 0.4 + rand() * 0.35,          // 昇降の振れ幅 (実際の上下動はこの2倍)
+          speed: (0.7 + rand() * 0.5) * speedBoost,
+          phase: rand() * Math.PI * 2,
+        };
+      } else {
+        move = {
+          axis: rand() < 0.5 ? 'x' : 'z',
+          amp: 1.1 + rand() * (0.8 + 0.6 * ease),
+          speed: (0.5 + rand() * 0.45) * speedBoost,
+          phase: rand() * Math.PI * 2,
+        };
+      }
+    } else if (roll < 0.27 && y > 24) {
+      // 踏むと少ししてから崩れ落ちる足場。一定時間で消え、しばらくして復活する。
+      kind = 'crumble';
+      hx = hz = 1.0;
+    } else if (roll < 0.35 && y > 44) {
+      // 時間で消えたり現れたりする足場。出ているタイミングを狙って渡る。
+      kind = 'phase';
+      hx = hz = 1.05;
+      phaseCfg = {
+        period: 2.6 + rand() * 1.8,     // 1周期の長さ (秒)
+        onFrac: 0.55 + rand() * 0.15,   // 出ている時間の割合
+        offset: rand(),                 // 個体ごとの位相ずれ
       };
-    } else if (roll < 0.34 && y > 5) {
+    } else if (roll < 0.5 && y > 5) {
       kind = 'beam';
-    } else if (roll < 0.52) {
+    } else if (roll < 0.66) {
       kind = 'small';
       hx = hz = 0.75 + rand() * 0.45;
     }
@@ -70,11 +98,20 @@ export function generateTower(seed = CONFIG.SEED) {
       else { hx = 0.42; hz = 2.4; }
     }
 
+    // 高所ほど平均的な足場の面積を小さくする (rest / goal / base は対象外)。
+    // 到達距離の補正より前に縮めるので、小さくなった分だけ足場の間隔も詰まる。
+    if (kind !== 'rest') {
+      const sizeScale = 1 - 0.42 * hFactor; // ゴール付近で約 0.58 倍
+      hx *= sizeScale;
+      hz *= sizeScale;
+    }
+
     // 必ず届く距離に補正: ジャンプ物理の到達距離から安全マージンを引いた値を上限に。
-    // 動く足場は自分と直前の振幅ぶんも詰める (位相がズレていても届くように)
+    // 横に動く足場は自分と直前の振幅ぶんも詰める (位相がズレていても届くように)。
+    // 上下に動く足場は最下点 (= 静止足場と同じ高さ) が届くので水平方向の補正は不要。
     const rNew = Math.min(hx, hz);
     let maxGap = reachAt(dyTop) - 0.55;
-    if (move) maxGap -= move.amp;
+    if (move && move.axis !== 'y') maxGap -= move.amp;
     maxGap = Math.max(maxGap - prev.amp, 0.9);
     const dx = nx - prev.x;
     const dz = nz - prev.z;
@@ -90,7 +127,7 @@ export function generateTower(seed = CONFIG.SEED) {
     // 掃引後の箱が立ち位置に重なると、側面の押し出しがプレイヤーを足場から
     // 突き落としてしまう (細いビームでは即落下)。すき間が保てる軸を選び、
     // それでも足りなければ振幅を絞る。絞りきれなければ静止足場にする。
-    if (move) {
+    if (move && move.axis !== 'y') {
       const CLEAR = CONFIG.PLAYER_R * 2 + 0.25;      // プレイヤーの直径 + 余裕
       const BODY_H = CONFIG.PLAYER_HALF_H * 2 + 0.1; // 立っている人の体の高さ
       const bottom = y - hy * 2;
@@ -174,8 +211,8 @@ export function generateTower(seed = CONFIG.SEED) {
       }
     }
 
-    platforms.push({ x: nx, y: top - hy, z: nz, hx, hy, hz, move, kind });
-    prev = { x: nx, z: nz, r: rNew, amp: move ? move.amp : 0, top };
+    platforms.push({ x: nx, y: top - hy, z: nz, hx, hy, hz, move, kind, phaseCfg });
+    prev = { x: nx, z: nz, r: rNew, amp: (move && move.axis !== 'y') ? move.amp : 0, top };
   }
 
   // ゴール台 (上面が prev.top + 1.5 になるように配置)

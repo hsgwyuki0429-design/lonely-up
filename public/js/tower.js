@@ -115,6 +115,65 @@ export function generateTower(seed = CONFIG.SEED) {
     }
 
     const top = prev.top + dyTop;
+    const newBot = top - hy * 2;
+
+    // 頭上クリアランス確保: この足場が「登れない行き止まり」を作らないよう位置を微調整する。
+    // らせんが内側へ巻き込むと、i+2 段目が i 段目の跳び出し口の真上に来て、そこから上へ
+    // 跳ぶと頭をぶつけて失速し次の足場へ届かなくなる。また、直前の足場のすぐ真上に
+    // 覆いかぶさると (体が入る隙間が無く) その足場に立てなくなる。どちらも避けたい。
+    // 直前の足場を中心にこの足場を「回して」逃がす。半径 (＝到達距離) は変えないので、
+    // 直前の足場から届く保証を保ったまま、じゃまな真上を外せる。
+    const jumpH = (CONFIG.JUMP_VEL * CONFIG.JUMP_VEL) / (2 * CONFIG.GRAVITY);
+    const PR = CONFIG.PLAYER_R;
+    // ジャンプ頂点で頭のてっぺんが届く高さ = 立ち位置から ジャンプ高 + 体の全高。
+    const headReach = jumpH + CONFIG.PLAYER_HALF_H * 2;
+    const BODY = CONFIG.PLAYER_HALF_H * 2 + 0.15; // 立っている体がすっぽり入るのに要る縦の空き
+
+    const blockedAt = (tx, tz) => {
+      for (let k = platforms.length - 1; k >= Math.max(platforms.length - 5, 0); k--) {
+        const q = platforms[k];
+        const qTop = q.y + q.hy;
+        const qBot = q.y - q.hy;
+        // (a) この足場が q の打ち上げ経路にフタをしていないか (q は下の足場に限る)
+        if (top > qTop && newBot < qTop + headReach) {
+          const nxt = platforms[k + 1] || prev;
+          let cx = nxt.x - q.x, cz = nxt.z - q.z;
+          const cl = Math.hypot(cx, cz) || 1e-6; cx /= cl; cz /= cl;
+          const start = Math.min(q.hx, q.hz);
+          for (let s = 0; s <= 2.4; s += 0.3) {
+            const px = q.x + cx * (start + s), pz = q.z + cz * (start + s);
+            if (px > tx - hx - PR && px < tx + hx + PR && pz > tz - hz - PR && pz < tz + hz + PR) return true;
+          }
+        }
+        // (b) この足場が q の真上/真下に覆いかぶさって、体が入る隙間を潰していないか。
+        //     直前の足場 (prev) は「乗ってから跳ぶ相手」なので端の重なりは許容 (除外)。
+        if (k !== platforms.length - 1) {
+          const overX = (hx + q.hx + PR) - Math.abs(tx - q.x);
+          const overZ = (hz + q.hz + PR) - Math.abs(tz - q.z);
+          if (overX > 0 && overZ > 0) {
+            const clr = top > qTop ? newBot - qTop : qBot - top; // 上下どちらの隙間か
+            if (clr < BODY) return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    if (blockedAt(nx, nz)) {
+      const ox = nx - prev.x, oz = nz - prev.z;
+      const baseAng = Math.atan2(oz, ox);
+      const baseDist = Math.hypot(ox, oz) || 0.001;
+      let done = false;
+      for (let step = 1; step <= 26 && !done; step++) {
+        for (const sgn of [1, -1]) {
+          const ang = baseAng + sgn * step * 0.12; // 直前の足場を軸に回す (到達距離は不変)
+          const tx = prev.x + Math.cos(ang) * baseDist;
+          const tz = prev.z + Math.sin(ang) * baseDist;
+          if (!blockedAt(tx, tz)) { nx = tx; nz = tz; done = true; break; }
+        }
+      }
+    }
+
     platforms.push({ x: nx, y: top - hy, z: nz, hx, hy, hz, move, kind });
     prev = { x: nx, z: nz, r: rNew, amp: move ? move.amp : 0, top };
   }

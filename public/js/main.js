@@ -432,8 +432,9 @@ const camPos = new THREE.Vector3();
 
 // 着地した足場の「次の足場」(生成順 = 登頂ルート順) の方向へ視点を向ける。
 // カメラを操作する指がないので、どこへ行けばいいかをカメラが教えてくれるようにする
-function pullCamToNext() {
-  const i = world.platforms.indexOf(player.standing);
+function pullCamToNext(fromPlat) {
+  const ref = fromPlat || player.standing;
+  const i = world.platforms.indexOf(ref);
   const next = i >= 0 ? world.platforms[i + 1] : null;
   if (!next) return;
   const t = Date.now() / 1000;
@@ -650,13 +651,26 @@ function frame(now) {
           }
         }
       } else if (ev.t === 'bounce') {
-        // 他プレイヤーの頭を踏んで跳ねた
-        sfx.jump(1.35);
-        fx.burst(player.pos.x, feetY, player.pos.z, {
-          count: 10, color: 0xffe08a, speed: 2, up: 1.2,
-          gravity: 4, life: 0.4, spread: 0.3,
-        });
-        fx.vibrate(12);
+        if (ev.big) {
+          // バウンドブロックで大きく跳ね上がった: バネ音 + 緑の火花 + 跳ね先へ視点を引っ張る
+          sfx.bounce();
+          fx.burst(player.pos.x, feetY, player.pos.z, {
+            count: 16, color: 0x69db7c, speed: 2.8, up: 1.8,
+            gravity: 5, life: 0.55, spread: 0.4,
+          });
+          fx.glow(0x69db7c, 0.4);
+          fx.shake(0.18);
+          fx.vibrate(16);
+          pullCamToNext(ev.plat); // 跳ね返った先 (バウンド台の次の足場) へ視点を向ける
+        } else {
+          // 他プレイヤーの頭を踏んで跳ねた
+          sfx.jump(1.35);
+          fx.burst(player.pos.x, feetY, player.pos.z, {
+            count: 10, color: 0xffe08a, speed: 2, up: 1.2,
+            gravity: 4, life: 0.4, spread: 0.3,
+          });
+          fx.vibrate(12);
+        }
       } else if (ev.t === 'bow') {
         sfx.tap();
       } else if (ev.t === 'fell') {

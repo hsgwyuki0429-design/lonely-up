@@ -244,6 +244,17 @@ export class Player {
       if (this.vel.y <= 0 && prevFeet >= b.maxY - 0.25) {
         // 上面に着地
         this.pos.y = b.maxY + C.PLAYER_HALF_H;
+        if (p.kind === 'bounce') {
+          // バウンドブロック: 着地せず、大きな初速で跳ね返る (通常ジャンプの約2.4倍の高さ)。
+          this.vel.y = C.BOUNCE_VEL;
+          this.grounded = false;
+          this.standing = null;
+          this.coyote = 0;
+          this.jumpBuffer = 0;
+          this.squash = 0.34; // ぐっと潰れてから弾ける
+          this.events.push({ t: 'bounce', big: true, topY: b.maxY, plat: p });
+          continue; // この足場では通常の着地/頭ぶつけ判定を行わない
+        }
         if (!this.grounded) {
           // 落下速度 = 衝撃の強さ。着地先の上面高さはコンボ判定に使う
           this.events.push({ t: 'land', impact: -this.vel.y, topY: b.maxY });

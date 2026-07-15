@@ -33,7 +33,7 @@ export class Net {
   }
 
   // ===== オンラインプレイ (Realtime Broadcast + Presence) =====
-  join(me, { onPos, onCount, onJoin, onLeave } = {}) {
+  join(me, { onPos, onCount, onJoin, onLeave, onChat } = {}) {
     if (!this.sb) return;
     this.channel = this.sb.channel('lonely-up:lobby', {
       config: {
@@ -45,6 +45,9 @@ export class Net {
     this.channel
       .on('broadcast', { event: 'pos' }, ({ payload }) => {
         if (payload?.i !== this.cid) onPos?.(payload);
+      })
+      .on('broadcast', { event: 'chat' }, ({ payload }) => {
+        if (payload?.i !== this.cid) onChat?.(payload);
       })
       .on('presence', { event: 'sync' }, () => {
         const state = this.channel.presenceState();
@@ -84,6 +87,17 @@ export class Net {
     };
     if (bowing) payload.b = 1; // 会釈中フラグ
     this.channel.send({ type: 'broadcast', event: 'pos', payload });
+  }
+
+  // コメントを全員へブロードキャスト
+  sendChat(me, text) {
+    if (!this.channel || !this.connected) return;
+    const t = String(text).trim().slice(0, 40);
+    if (!t) return;
+    this.channel.send({
+      type: 'broadcast', event: 'chat',
+      payload: { i: this.cid, n: me.name, c: me.color, t },
+    });
   }
 
   // ===== 世界ランキング =====

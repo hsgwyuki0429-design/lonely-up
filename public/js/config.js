@@ -1,6 +1,6 @@
 // アプリのバージョン。アプデのたびに 0.1 ずつ上げる (package.json と sw.js の CACHE も揃える)。
 // タイトル画面に表示し、デプロイが反映されたかを目視確認できるようにしている。
-export const VERSION = '3.10';
+export const VERSION = '3.11';
 
 // 全クライアント共通の定数。SEED を変えると塔の形が変わる
 // (全員同じ塔を登ることでランキングが公平になる)。
@@ -10,6 +10,7 @@ export const CONFIG = {
 
   GRAVITY: 22,
   JUMP_VEL: 9.6,             // ジャンプ高 ≈ 2.1m
+  BOUNCE_VEL: 15,            // バウンドブロックの打ち上げ初速。跳躍高 ≈ 5.1m (通常ジャンプの約2.4倍)
   MOVE_SPEED: 6.2,
   STICK_DEADZONE: 0.12,      // スティックの遊び。これ以下の入力は無視し、超えた分を 0〜1 に再スケール
   GROUND_ACCEL: 46,

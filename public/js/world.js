@@ -131,7 +131,7 @@ export class World {
   // ================== 見た目 ==================
   // 個別メッシュで描く足場か (テーマ着色の対象外。色/挙動そのものが手がかりになる)
   static _isDynamicMesh(p) {
-    return !!p.move || p.kind === 'crumble' || p.kind === 'phase';
+    return !!p.move || p.kind === 'crumble' || p.kind === 'phase' || p.kind === 'bounce';
   }
 
   buildMeshes() {
@@ -169,6 +169,7 @@ export class World {
       if (p.move) color = p.move.axis === 'y' ? 0x4dabf7 : 0x66d9e8;
       else if (p.kind === 'crumble') color = 0xffa94d;
       else if (p.kind === 'phase') color = 0xb197fc;
+      else if (p.kind === 'bounce') color = 0x69db7c; // バネの緑 (踏むと大きく跳ねる合図)
       const mat = new THREE.MeshLambertMaterial({ color });
       if (p.kind === 'phase') mat.transparent = true; // 明滅・出現/消滅の演出に使う
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.hx * 2, p.hy * 2, p.hz * 2), mat);
@@ -183,9 +184,18 @@ export class World {
 
     this.applyTheme(0); // 初期テーマ (フォレスト) で全足場を着色
 
-    // 休憩所の目印リング & ゴール演出
+    // 休憩所の目印リング & バウンド台のバネリング & ゴール演出
     for (const p of this.platforms) {
-      if (p.kind === 'rest') {
+      if (p.kind === 'bounce') {
+        // バネを示す緑のリング (上面に浮かせる)。踏めば大きく跳ねる合図。
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(p.hx * 0.7, 0.09, 8, 22),
+          new THREE.MeshBasicMaterial({ color: 0xb2f2bb })
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(p.x, p.y + p.hy + 0.06, p.z);
+        this.scene.add(ring);
+      } else if (p.kind === 'rest') {
         const ring = new THREE.Mesh(
           new THREE.TorusGeometry(1.2, 0.07, 8, 24),
           new THREE.MeshBasicMaterial({ color: 0xffd166 })

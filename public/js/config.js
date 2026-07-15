@@ -1,6 +1,6 @@
 // アプリのバージョン。アプデのたびに 0.1 ずつ上げる (package.json と sw.js の CACHE も揃える)。
 // タイトル画面に表示し、デプロイが反映されたかを目視確認できるようにしている。
-export const VERSION = '3.3';
+export const VERSION = '3.4';
 
 // 全クライアント共通の定数。SEED を変えると塔の形が変わる
 // (全員同じ塔を登ることでランキングが公平になる)。
@@ -55,7 +55,14 @@ export const STORAGE = {
   CLEAR_MS: 'lonelyup_clear_ms',
   COLOR: 'lonelyup_color',
   LOW_CAM: 'lonelyup_low_cam',
+  STAMPS: 'lonelyup_stamps',
 };
+
+// コメントのスタンプ (定型文) 初期値。押すだけで送れる。編集して保存できる。
+export const DEFAULT_STAMPS = [
+  'やっほー！👋', 'ナイス！✨', 'がんばれ〜🔥',
+  'まけないぞ💪', 'むずい…😵', 'おちた…😭',
+];
 
 // プレイヤーカラー候補
 export const PLAYER_COLORS = [

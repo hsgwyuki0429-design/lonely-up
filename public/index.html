@@ -54,8 +54,15 @@
   <div id="chatFeed"></div>
   <button id="btnChat" aria-label="コメント">💬</button>
   <div id="chatBar" class="hidden">
-    <input id="chatInput" type="text" maxlength="40" placeholder="コメントを送信…" autocomplete="off" enterkeyhint="send">
-    <button id="chatSend">送信</button>
+    <div id="chatStampHead">
+      <span class="stamphint">スタンプを押すだけで送信</span>
+      <button id="btnStampEdit">編集</button>
+    </div>
+    <div id="chatStamps"></div>
+    <div id="chatInputRow">
+      <input id="chatInput" type="text" maxlength="40" placeholder="自由入力…" autocomplete="off" enterkeyhint="send">
+      <button id="chatSend">送信</button>
+    </div>
   </div>
   <div id="joy"><div id="joyKnob"></div></div>
   <button id="btnBow" aria-label="会釈">🙇</button>

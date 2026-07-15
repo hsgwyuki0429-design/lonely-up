@@ -27,14 +27,14 @@ export class UI {
       chatBar: document.getElementById('chatBar'),
       chatInput: document.getElementById('chatInput'),
       chatFeed: document.getElementById('chatFeed'),
+      chatStamps: document.getElementById('chatStamps'),
     };
   }
 
   // ===== コメント (チャット) =====
-  // 入力バーを開いて即入力できるようにする
+  // 入力バーを開く。キーボードは自動で出さない (スタンプを押すだけで送れるように)。
   openChat() {
     this.el.chatBar.classList.remove('hidden');
-    this.el.chatInput.focus();
   }
 
   closeChat() {

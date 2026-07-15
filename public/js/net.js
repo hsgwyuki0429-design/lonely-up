@@ -1,4 +1,4 @@
-import { CONFIG, STORAGE } from './config.js';
+import { CONFIG, STORAGE, VERSION } from './config.js';
 
 // Supabase 連携: 世界ランキング (Postgres) + オンラインプレイ (Realtime)
 // 環境変数未設定でもオフラインモードとして動作する。
@@ -11,6 +11,12 @@ export class Net {
     this._lastSend = 0;
     this._lastScoreSync = 0;
     this._lastSentBest = -1;
+
+    this.version = VERSION;
+    this.roster = new Map();   // cid -> { name, color, v }  (presence から)
+    this.heights = new Map();  // cid -> { y, t }            (pos 受信から: 現在の高さ)
+    this.selfY = 0;            // 自分の現在の高さ (main が毎フレーム更新)
+    this._me = null;
 
     this.cid = localStorage.getItem(STORAGE.CID);
     if (!this.cid) {
@@ -35,6 +41,7 @@ export class Net {
   // ===== オンラインプレイ (Realtime Broadcast + Presence) =====
   join(me, { onPos, onCount, onJoin, onLeave, onChat } = {}) {
     if (!this.sb) return;
+    this._me = me;
     this.channel = this.sb.channel('lonely-up:lobby', {
       config: {
         broadcast: { self: false },
@@ -44,7 +51,13 @@ export class Net {
 
     this.channel
       .on('broadcast', { event: 'pos' }, ({ payload }) => {
-        if (payload?.i !== this.cid) onPos?.(payload);
+        if (payload?.i && payload.i !== this.cid) {
+          // 現在の高さ (足元) を記録。オンライン一覧に表示する
+          this.heights.set(payload.i, {
+            y: payload.y - CONFIG.PLAYER_HALF_H, t: performance.now(),
+          });
+          onPos?.(payload);
+        }
       })
       .on('broadcast', { event: 'chat' }, ({ payload }) => {
         if (payload?.i !== this.cid) onChat?.(payload);
@@ -52,22 +65,59 @@ export class Net {
       .on('presence', { event: 'sync' }, () => {
         const state = this.channel.presenceState();
         this.online = Math.max(Object.keys(state).length, 1);
+        // 名簿を作り直す (name / color / version)
+        this.roster.clear();
+        for (const [cid, metas] of Object.entries(state)) {
+          const m = (metas && metas[0]) || {};
+          this.roster.set(cid, { name: m.name || '???', color: m.color | 0, v: m.v || '?' });
+        }
         onCount?.(this.online);
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         if (key !== this.cid) onJoin?.(newPresences?.[0]?.name);
       })
       .on('presence', { event: 'leave' }, ({ key }) => {
-        if (key !== this.cid) onLeave?.(key);
+        if (key !== this.cid) {
+          this.heights.delete(key);
+          onLeave?.(key);
+        }
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           this.connected = true;
-          await this.channel.track({ name: me.name, color: me.color });
+          await this.channel.track({ name: me.name, color: me.color, v: this.version });
         } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
           this.connected = false;
         }
       });
+  }
+
+  // 名前や色を変えたら presence を更新する (名簿へ即反映)
+  async updateIdentity(me) {
+    this._me = me;
+    if (this.channel && this.connected) {
+      try {
+        await this.channel.track({ name: me.name, color: me.color, v: this.version });
+      } catch { /* 一時的な失敗は無視 */ }
+    }
+  }
+
+  // 今オンラインの人の一覧。各行に現在の高さと version を添える。
+  // y は分かれば足元の高さ (m)、不明なら null (待機中など)。
+  onlineList() {
+    const now = performance.now();
+    const rows = [];
+    for (const [cid, r] of this.roster) {
+      const isMe = cid === this.cid;
+      let y = null;
+      if (isMe) y = this.selfY;
+      else {
+        const h = this.heights.get(cid);
+        if (h && now - h.t < 10000) y = h.y; // 10秒以内の受信のみ「現在地」とみなす
+      }
+      rows.push({ cid, name: r.name, color: r.color, v: r.v, y, isMe });
+    }
+    return rows;
   }
 
   // 位置ブロードキャスト (スロットル付き)

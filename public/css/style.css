@@ -418,6 +418,12 @@ html, body {
 }
 .primary { transition: transform 0.06s ease-out; }
 .primary:active { transform: scale(0.96); }
+.primary:disabled {
+  filter: grayscale(0.7) brightness(0.8);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.namehint { font-size: 11px; color: #ffd97a; opacity: 0.9; margin: -4px 0 8px; text-align: center; }
 
 .ghostbtn {
   width: 100%;
@@ -469,6 +475,7 @@ html, body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .netstatus.online { color: #7fe0a0; opacity: 1; }
+.netstatus.clickable { pointer-events: auto; cursor: pointer; text-decoration: underline dotted; }
 
 /* ===== ranking ===== */
 .ranklist {
@@ -494,6 +501,28 @@ html, body {
 .rankrow .rname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rankrow .rheight { font-weight: 700; color: #7fe0a0; font-variant-numeric: tabular-nums; }
 .rankrow .rtime { font-size: 11px; opacity: 0.7; font-variant-numeric: tabular-nums; }
+
+/* ===== オンラインの人 ===== */
+.onlinesummary { width: 100%; margin-bottom: 8px; }
+.osum { padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 700; text-align: center; }
+.osum.ok { background: rgba(60, 200, 120, 0.16); color: #8ff0b8; }
+.osum.warn { background: rgba(255, 120, 80, 0.18); color: #ffb59a; }
+.onlinerow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+}
+.onlinerow.me { background: rgba(255, 159, 67, 0.22); border: 1px solid rgba(255, 159, 67, 0.5); }
+.onlinerow .odot { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.25); }
+.onlinerow .oname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.onlinerow .oheight { font-weight: 700; color: #7fe0a0; font-variant-numeric: tabular-nums; min-width: 54px; text-align: right; }
+.onlinerow .over { font-size: 11px; font-weight: 700; min-width: 56px; text-align: right; }
+.onlinerow .over.new { color: #8ff0b8; }
+.onlinerow .over.old { color: #ff8f6b; }
 
 @media (min-width: 768px) {
   #btnBow { width: 76px; height: 76px; font-size: 30px; }

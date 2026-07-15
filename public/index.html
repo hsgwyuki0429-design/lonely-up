@@ -46,6 +46,7 @@
   </div>
   <div id="topbtns">
     <button id="btnHome" class="iconbtn" aria-label="ホームに戻る">🏠</button>
+    <button id="btnOnline" class="iconbtn" aria-label="オンラインの人">👥</button>
     <button id="btnRank" class="iconbtn" aria-label="ランキング">🏆</button>
     <button id="btnRestart" class="iconbtn" aria-label="リスタート">↻</button>
   </div>
@@ -75,8 +76,9 @@
 <div id="title" class="panel">
   <h1>LONELY UP</h1>
   <p class="tagline">ひたすら上へ。落ちたら、自分のせい。</p>
-  <input id="nameInput" type="text" maxlength="12" placeholder="なまえ (12文字まで)" autocomplete="off">
-  <button id="btnStart" class="primary">のぼる</button>
+  <input id="nameInput" type="text" maxlength="12" placeholder="なまえを入力 (必須)" autocomplete="off">
+  <div id="nameHint" class="namehint">プレイするには自分の名前を入力してください</div>
+  <button id="btnStart" class="primary" disabled>のぼる</button>
   <div class="howto">
     <div>🖐 片手で遊べます</div>
     <div>🕹 画面のどこでもドラッグ : 移動</div>
@@ -96,6 +98,14 @@
   <h2>🏆 世界ランキング</h2>
   <div id="rankList" class="ranklist"><div class="rankrow">読み込み中...</div></div>
   <button id="btnRankClose" class="primary">とじる</button>
+</div>
+
+<!-- ===== オンラインの人 ===== -->
+<div id="onlinePanel" class="panel hidden">
+  <h2>👥 オンライン</h2>
+  <div id="onlineSummary" class="onlinesummary"></div>
+  <div id="onlineList" class="ranklist"></div>
+  <button id="btnOnlineClose" class="primary">とじる</button>
 </div>
 
 <!-- ===== クリア ===== -->

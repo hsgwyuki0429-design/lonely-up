@@ -23,8 +23,27 @@ html, body {
   touch-action: none;
 }
 
-/* 決定的な瞬間の画面反転 (ネガ) フラッシュ */
-#game.invert { filter: invert(1); }
+/* 決定的な瞬間の画面反転 (ネガ) フラッシュ。
+   WebGL キャンバスへ直接 filter を当てると一部の Chrome/GPU で描画が壊れるため、
+   キャンバスには一切触れず、白 + mix-blend-mode:difference のオーバーレイで反転させる
+   (合成で反転するので安全。万一ブレンド非対応でも白フラッシュに劣化するだけ)。 */
+/* isolation:isolate で、反転オーバーレイのブレンドを #stage 内 (= キャンバス) だけに
+   限定する。HUD やパネルは #stage の外なので反転の影響を受けない。 */
+#stage {
+  position: fixed;
+  inset: 0;
+  isolation: isolate;
+  z-index: 0;
+}
+#invert {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: #fff;
+  mix-blend-mode: difference;
+  opacity: 0;
+}
+#invert.show { opacity: 1; }
 
 .hidden { display: none !important; }
 

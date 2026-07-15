@@ -1,5 +1,26 @@
 import { CONFIG, STORAGE, VERSION } from './config.js';
 
+// クライアントID (UUID) を生成する。crypto.randomUUID は「安全なコンテキスト (HTTPS/localhost)」
+// でしか使えず、それ以外 (一部の埋め込みブラウザ等) では undefined になり例外で
+// アプリ全体が起動不能になる。使えない環境でも動くようフォールバックを用意する。
+function makeClientId() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  } catch { /* fallthrough */ }
+  const hex = (n) => {
+    let s = '';
+    try {
+      const a = new Uint8Array(n);
+      crypto.getRandomValues(a);
+      for (const b of a) s += b.toString(16).padStart(2, '0');
+    } catch {
+      for (let i = 0; i < n; i++) s += Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+    }
+    return s;
+  };
+  return `${hex(4)}-${hex(2)}-${hex(2)}-${hex(2)}-${hex(6)}`;
+}
+
 // Supabase 連携: 世界ランキング (Postgres) + オンラインプレイ (Realtime)
 // 環境変数未設定でもオフラインモードとして動作する。
 export class Net {
@@ -20,7 +41,7 @@ export class Net {
 
     this.cid = localStorage.getItem(STORAGE.CID);
     if (!this.cid) {
-      this.cid = crypto.randomUUID();
+      this.cid = makeClientId();
       localStorage.setItem(STORAGE.CID, this.cid);
     }
 

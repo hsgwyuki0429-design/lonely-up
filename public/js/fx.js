@@ -43,101 +43,18 @@ export class FX {
     this._flashTimer = 0;
     this.glowEl = document.getElementById('glow');
     this._glowTimer = 0;
+    this.canvasEl = document.getElementById('game');
+    this._invTimer = 0;
     this._c = new THREE.Color();
-
-    this._initShockwaves(scene);
-    this._initTrail(scene);
   }
 
-  // ---- 衝撃波リング ----
-  // 着地・マイルストーン・当たりの瞬間に地面へ広がる光の輪。1発の重みを増幅する。
-  _initShockwaves(scene) {
-    const RINGS = 10;
-    this.rings = [];
-    for (let i = 0; i < RINGS; i++) {
-      const mesh = new THREE.Mesh(
-        new THREE.RingGeometry(0.82, 1, 40),
-        new THREE.MeshBasicMaterial({
-          color: 0xffffff, transparent: true, opacity: 0,
-          side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
-        })
-      );
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.visible = false;
-      mesh.frustumCulled = false;
-      scene.add(mesh);
-      this.rings.push({ mesh, life: 0, maxLife: 1, r0: 0.5, r1: 4, up: false });
-    }
-    this._ringCursor = 0;
-  }
-
-  // 水平に広がる輪 (up=true で縦向き=噴き上がる輪)
-  shockwave(x, y, z, { color = 0xffffff, r0 = 0.5, r1 = 4, life = 0.5, up = false } = {}) {
-    const r = this.rings[this._ringCursor];
-    this._ringCursor = (this._ringCursor + 1) % this.rings.length;
-    r.mesh.position.set(x, y, z);
-    r.mesh.rotation.x = up ? 0 : -Math.PI / 2;
-    r.mesh.material.color.setHex(color);
-    r.life = r.maxLife = life;
-    r.r0 = r0; r.r1 = r1;
-    r.mesh.visible = true;
-  }
-
-  // ---- コメット・トレイル ----
-  // プレイヤーの残像。直近の軌跡を尾のように引きずり、勢いを可視化する。
-  _initTrail(scene) {
-    const N = 22;
-    this.trailN = N;
-    this._trailPos = new Float32Array(N * 3);
-    this._trailCol = new Float32Array(N * 3);
-    for (let i = 0; i < N; i++) this._trailPos[i * 3 + 1] = HIDDEN_Y;
-    const geo = new THREE.BufferGeometry();
-    this._trailPosAttr = new THREE.BufferAttribute(this._trailPos, 3);
-    this._trailColAttr = new THREE.BufferAttribute(this._trailCol, 3);
-    geo.setAttribute('position', this._trailPosAttr);
-    geo.setAttribute('color', this._trailColAttr);
-    this.trail = new THREE.Points(geo, new THREE.PointsMaterial({
-      size: 0.34, vertexColors: true, transparent: true, opacity: 0.9,
-      depthWrite: false, blending: THREE.AdditiveBlending,
-    }));
-    this.trail.frustumCulled = false;
-    scene.add(this.trail);
-    this._trailColor = new THREE.Color(0xffffff);
-    this._trailReady = false;
-  }
-
-  setTrailColor(hex) {
-    this._trailColor.setHex(hex);
-  }
-
-  // 毎フレーム: 先頭をプレイヤーへ、後続を前のノードへ遅れて追従させる (ラグチェーン)。
-  // 尾に向かって暗く=薄くしていく (加算合成なので暗色ほど透明に見える)。
-  updateTrail(x, y, z) {
-    const N = this.trailN, P = this._trailPos, C = this._trailCol;
-    if (!this._trailReady) { // 初期化: 全ノードを現在地へ畳む (スポーン時の走査線防止)
-      for (let i = 0; i < N; i++) { P[i * 3] = x; P[i * 3 + 1] = y; P[i * 3 + 2] = z; }
-      this._trailReady = true;
-    }
-    P[0] = x; P[1] = y; P[2] = z;
-    for (let i = 1; i < N; i++) {
-      const j = i * 3, k = (i - 1) * 3;
-      P[j] += (P[k] - P[j]) * 0.5;
-      P[j + 1] += (P[k + 1] - P[j + 1]) * 0.5;
-      P[j + 2] += (P[k + 2] - P[j + 2]) * 0.5;
-      const f = 1 - i / N; // 尾へ向かってフェード
-      C[j] = this._trailColor.r * f;
-      C[j + 1] = this._trailColor.g * f;
-      C[j + 2] = this._trailColor.b * f;
-    }
-    C[0] = this._trailColor.r; C[1] = this._trailColor.g; C[2] = this._trailColor.b;
-    this._trailPosAttr.needsUpdate = true;
-    this._trailColAttr.needsUpdate = true;
-  }
-
-  hideTrail() {
-    this._trailReady = false;
-    for (let i = 0; i < this.trailN; i++) this._trailPos[i * 3 + 1] = HIDDEN_Y;
-    this._trailPosAttr.needsUpdate = true;
+  // ---- 画面反転 ----
+  // 決定的な瞬間に一瞬だけゲーム画面の色を反転 (ネガ) させる。強烈なインパクトを作る。
+  invert(ms = 90) {
+    if (!this.canvasEl) return;
+    this.canvasEl.classList.add('invert');
+    clearTimeout(this._invTimer);
+    this._invTimer = setTimeout(() => this.canvasEl.classList.remove('invert'), ms);
   }
 
   // ---- スクリーンシェイク ----
@@ -244,17 +161,6 @@ export class FX {
         this.pos[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
       }
       if (active) this.posAttr.needsUpdate = true;
-
-      // 衝撃波リング: 広がりながら細く・薄くなって消える
-      for (const r of this.rings) {
-        if (r.life <= 0) continue;
-        r.life -= dt;
-        if (r.life <= 0) { r.mesh.visible = false; continue; }
-        const p = 1 - r.life / r.maxLife;       // 0→1
-        const rad = r.r0 + (r.r1 - r.r0) * (1 - Math.pow(1 - p, 2)); // 勢いよく出て減速
-        r.mesh.scale.setScalar(rad);
-        r.mesh.material.opacity = 0.75 * (1 - p) * (1 - p);
-      }
     }
 
     if (this.trauma > 0) {

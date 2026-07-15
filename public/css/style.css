@@ -436,6 +436,25 @@ html, body {
   cursor: pointer;
 }
 
+/* 最新バージョンにするボタン */
+.ghostbtn.warn {
+  border-color: rgba(255, 160, 80, 0.9);
+  background: rgba(255, 130, 70, 0.18);
+  color: #ffd0b0;
+  font-weight: 700;
+}
+.linkbtn {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: #9ec7ff;
+  font-size: 12px;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+.linkbtn:active { opacity: 0.7; }
+
 .howto {
   display: flex;
   flex-direction: column;

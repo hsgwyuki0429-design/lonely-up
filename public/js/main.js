@@ -207,6 +207,12 @@ function refreshOnline() {
     return { name: r.name, colorHex: colorHex(r.color), height: r.y, v: r.v, outdated, isMe: r.isMe };
   });
   ui.renderOnline(rows, latest, anyOutdated);
+  // 自分が古い版なら更新ボタンを強調する
+  if (btnUpdate && !updating) {
+    const meOutdated = rows.some((r) => r.isMe && r.outdated);
+    btnUpdate.classList.toggle('warn', meOutdated);
+    btnUpdate.textContent = meOutdated ? '⚠ 最新バージョンにする' : '🔄 最新バージョンにする';
+  }
 }
 function openOnline() {
   ui.openOnline();
@@ -222,6 +228,31 @@ function closeOnline() {
 document.getElementById('btnOnline').addEventListener('click', openOnline);
 document.getElementById('btnOnlineClose').addEventListener('click', closeOnline);
 document.getElementById('netStatus').addEventListener('click', openOnline); // タイトルからも開ける
+
+// ---- 最新バージョンにする: キャッシュと Service Worker を破棄して再読み込み ----
+// ネットワーク優先の SW でも、古い SW/キャッシュが残っていると旧版のままになることがある。
+// 全キャッシュ削除 + SW 登録解除 → リロードで、確実に最新の配信物を取り直す。
+let updating = false;
+const btnUpdate = document.getElementById('btnUpdate');
+async function updateToLatest(btn) {
+  if (updating) return;
+  updating = true;
+  if (btn) { btn.disabled = true; btn.textContent = '更新中…'; }
+  try {
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch { /* 失敗しても再読み込みは試みる */ }
+  location.reload();
+}
+btnUpdate?.addEventListener('click', (e) => updateToLatest(e.currentTarget));
+document.getElementById('btnUpdateTitle')
+  ?.addEventListener('click', (e) => updateToLatest(e.currentTarget));
 
 // ================== コメント (チャット) ==================
 // コメントを送信 (自由入力・スタンプ共通の実処理)

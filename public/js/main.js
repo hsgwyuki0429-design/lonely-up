@@ -42,12 +42,21 @@ window.addEventListener('resize', () => {
 });
 
 // ================== プレイヤー情報 ==================
+// 名前は必須。ゲスト名の自動割り当てはせず、最初に自分で入力してもらう。
 const me = {
-  name: localStorage.getItem(STORAGE.NAME) || `ゲスト${Math.floor(Math.random() * 900) + 100}`,
+  name: (localStorage.getItem(STORAGE.NAME) || '').trim(),
   color: Number(localStorage.getItem(STORAGE.COLOR) ?? Math.floor(Math.random() * PLAYER_COLORS.length)),
 };
 localStorage.setItem(STORAGE.COLOR, String(me.color));
 player.setColor(PLAYER_COLORS[me.color % PLAYER_COLORS.length]);
+
+// 名前が入るまで「のぼる」を押せなくする
+const btnStartEl = document.getElementById('btnStart');
+function validateName() {
+  const ok = ui.el.nameInput.value.trim().length >= 1;
+  btnStartEl.disabled = !ok;
+  return ok;
+}
 
 // プレイヤーカラー番号 → CSS 色文字列 (コメントの名前色に使う)
 const colorHex = (idx) => {
@@ -90,6 +99,8 @@ function resetCombo() {
 }
 
 ui.el.nameInput.value = me.name;
+ui.el.nameInput.addEventListener('input', validateName);
+validateName();
 ui.showTitle(false);
 
 // オンライン接続。ここで例外が出てもゲーム本体 (スタート等) が死なないよう握りつぶす
@@ -100,6 +111,8 @@ if (net.available) {
       onCount: (n) => {
         ui.el.online.textContent = String(n);
         if (state === 'title') ui.showTitle(true);
+        ui.setOnlineCount(n);
+        if (ui.onlineOpen) refreshOnline();
       },
       onJoin: (name) => {
         if (state !== 'title' && name) ui.toast(`${String(name).slice(0, 12)} さんが登り始めた`);
@@ -118,8 +131,11 @@ if (net.available) {
 
 // ================== 画面遷移 ==================
 function startRun() {
-  me.name = (ui.el.nameInput.value || me.name).trim().slice(0, 12) || 'ゲスト';
+  const nm = (ui.el.nameInput.value || '').trim().slice(0, 12);
+  if (!nm) { ui.el.nameInput.focus(); validateName(); return; } // 名前は必須
+  me.name = nm;
   localStorage.setItem(STORAGE.NAME, me.name);
+  net.updateIdentity(me); // presence の名前を最新に (オンライン一覧へ反映)
   sfx.unlock();
   player.spawn();
   camYaw = Math.PI;
@@ -155,8 +171,10 @@ function goHome() {
   }
   state = 'title';
   input.enabled = false;
+  net.selfY = 0; // タイトルでは待機中 (高さ0)
   setStampEdit(false);
   ui.closeChat();
+  closeOnline();
   ui.closeRanking();
   ui.hideClear();
   ui.hideCombo();
@@ -166,6 +184,44 @@ document.getElementById('btnHome').addEventListener('click', () => {
   if (state === 'title') return;
   goHome();
 });
+
+// ================== オンラインの人の一覧 (名前・現在の高さ・バージョン) ==================
+// バージョン文字列の比較 (a > b か)。"3.10" も正しく比較できるよう桁ごとに数値比較する。
+function verGt(a, b) {
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+let onlineTimer = null;
+function refreshOnline() {
+  const raw = net.onlineList();
+  let latest = VERSION;
+  for (const r of raw) if (verGt(r.v, latest)) latest = r.v; // 全員の中で一番新しい版
+  let anyOutdated = false;
+  const rows = raw.map((r) => {
+    const outdated = verGt(latest, r.v);
+    if (outdated) anyOutdated = true;
+    return { name: r.name, colorHex: colorHex(r.color), height: r.y, v: r.v, outdated, isMe: r.isMe };
+  });
+  ui.renderOnline(rows, latest, anyOutdated);
+}
+function openOnline() {
+  ui.openOnline();
+  refreshOnline();
+  clearInterval(onlineTimer);
+  onlineTimer = setInterval(refreshOnline, 1000); // 高さは動くのでライブ更新
+}
+function closeOnline() {
+  ui.closeOnline();
+  clearInterval(onlineTimer);
+  onlineTimer = null;
+}
+document.getElementById('btnOnline').addEventListener('click', openOnline);
+document.getElementById('btnOnlineClose').addEventListener('click', closeOnline);
+document.getElementById('netStatus').addEventListener('click', openOnline); // タイトルからも開ける
 
 // ================== コメント (チャット) ==================
 // コメントを送信 (自由入力・スタンプ共通の実処理)
@@ -599,6 +655,7 @@ function frame(now) {
     }
 
     const elapsed = state === 'clear' ? clearMsThisRun : performance.now() - runStart;
+    net.selfY = player.pos.y - CONFIG.PLAYER_HALF_H; // オンライン一覧に出す自分の現在の高さ
     ui.updateHud(
       player.pos.y - CONFIG.PLAYER_HALF_H,
       allTimeBest,

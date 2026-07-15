@@ -28,7 +28,67 @@ export class UI {
       chatInput: document.getElementById('chatInput'),
       chatFeed: document.getElementById('chatFeed'),
       chatStamps: document.getElementById('chatStamps'),
+      onlinePanel: document.getElementById('onlinePanel'),
+      onlineList: document.getElementById('onlineList'),
+      onlineSummary: document.getElementById('onlineSummary'),
     };
+  }
+
+  // ===== オンラインの人の一覧 =====
+  openOnline() {
+    this.el.onlinePanel.classList.remove('hidden');
+  }
+
+  closeOnline() {
+    this.el.onlinePanel.classList.add('hidden');
+  }
+
+  get onlineOpen() {
+    return !this.el.onlinePanel.classList.contains('hidden');
+  }
+
+  // rows: [{ name, colorHex, height(null可), v, outdated, isMe }]  latest: 最新版の文字列
+  renderOnline(rows, latest, anyOutdated) {
+    this.el.onlineSummary.innerHTML = '';
+    const sum = document.createElement('div');
+    sum.className = 'osum ' + (anyOutdated ? 'warn' : 'ok');
+    sum.textContent = anyOutdated
+      ? `⚠ 最新は v${latest}。古いバージョンの人がいます`
+      : `✓ 全員が最新 (v${latest}) です`;
+    this.el.onlineSummary.appendChild(sum);
+
+    const list = this.el.onlineList;
+    list.innerHTML = '';
+    // 高い人から並べる (高さ不明は末尾)
+    rows.slice().sort((a, b) => (b.height ?? -1) - (a.height ?? -1)).forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'onlinerow' + (r.isMe ? ' me' : '');
+
+      const dot = document.createElement('span');
+      dot.className = 'odot';
+      dot.style.background = r.colorHex;
+
+      const name = document.createElement('span');
+      name.className = 'oname';
+      name.textContent = (r.name || '???') + (r.isMe ? '（あなた）' : '');
+
+      const h = document.createElement('span');
+      h.className = 'oheight';
+      h.textContent = r.height == null ? '待機中' : `${Math.max(r.height, 0).toFixed(1)}m`;
+
+      const ver = document.createElement('span');
+      ver.className = 'over ' + (r.outdated ? 'old' : 'new');
+      ver.textContent = r.outdated ? `v${r.v} ⚠` : `v${r.v} ✓`;
+
+      row.append(dot, name, h, ver);
+      list.appendChild(row);
+    });
+    if (!rows.length) {
+      const d = document.createElement('div');
+      d.className = 'rankrow';
+      d.textContent = 'オフラインモードです。';
+      list.appendChild(d);
+    }
   }
 
   // ===== コメント (チャット) =====
@@ -84,6 +144,12 @@ export class UI {
   startGame() {
     this.el.title.classList.add('hidden');
     this.el.hud.classList.remove('hidden');
+  }
+
+  // タイトルのオンライン表示 (人数 + 一覧を開けるヒント)
+  setOnlineCount(n) {
+    this.el.netStatus.textContent = `🟢 オンライン ${n}人（タップで一覧）`;
+    this.el.netStatus.classList.add('online', 'clickable');
   }
 
   updateHud(height, best, elapsedMs, online) {

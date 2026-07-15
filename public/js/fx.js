@@ -43,18 +43,19 @@ export class FX {
     this._flashTimer = 0;
     this.glowEl = document.getElementById('glow');
     this._glowTimer = 0;
-    this.canvasEl = document.getElementById('game');
+    this.invertEl = document.getElementById('invert');
     this._invTimer = 0;
     this._c = new THREE.Color();
   }
 
   // ---- 画面反転 ----
-  // 決定的な瞬間に一瞬だけゲーム画面の色を反転 (ネガ) させる。強烈なインパクトを作る。
+  // 決定的な瞬間に一瞬だけ画面の色を反転 (ネガ) させる。WebGL キャンバスには触れず、
+  // 白 + mix-blend-mode:difference のオーバーレイを一瞬表示して合成で反転する。
   invert(ms = 90) {
-    if (!this.canvasEl) return;
-    this.canvasEl.classList.add('invert');
+    if (!this.invertEl) return;
+    this.invertEl.classList.add('show');
     clearTimeout(this._invTimer);
-    this._invTimer = setTimeout(() => this.canvasEl.classList.remove('invert'), ms);
+    this._invTimer = setTimeout(() => this.invertEl.classList.remove('show'), ms);
   }
 
   // ---- スクリーンシェイク ----

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildAvatar } from './player.js';
+import { buildAvatar, makeBubble, disposeBubble } from './player.js';
 import { CONFIG, PLAYER_COLORS } from './config.js';
 
 // 名前ラベル (Sprite)
@@ -69,9 +69,20 @@ export class Ghosts {
     g.last = performance.now();
   }
 
+  // その相手の頭上に吹き出し (コメント) を出す。まだ表示されていない相手なら無視。
+  say(id, text) {
+    const g = this.map.get(id);
+    if (!g) return;
+    if (g.bubble) { g.group.remove(g.bubble); disposeBubble(g.bubble); }
+    g.bubble = makeBubble(text);
+    g.group.add(g.bubble);
+    g.bubbleT = 5;
+  }
+
   remove(id) {
     const g = this.map.get(id);
     if (!g) return;
+    if (g.bubble) disposeBubble(g.bubble);
     this.scene.remove(g.group);
     this.map.delete(id);
   }
@@ -106,6 +117,16 @@ export class Ghosts {
         g.group.position.y -= (1 - Math.cos(tilt)) * hh;
       }
       g.group.rotation.x = tilt;
+
+      // 吹き出しの寿命
+      if (g.bubble) {
+        g.bubbleT -= dt;
+        if (g.bubbleT <= 0) {
+          g.group.remove(g.bubble);
+          disposeBubble(g.bubble);
+          g.bubble = null;
+        }
+      }
     }
   }
 

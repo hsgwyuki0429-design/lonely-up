@@ -36,9 +36,65 @@ export function buildAvatar(colorHex) {
   return g;
 }
 
+// キャラの頭上に出す吹き出し (Sprite)。text をコメントとして描く。
+// center を下端 (0.5, 0) にして position.y の高さから上へ伸びるようにする。
+export function makeBubble(text) {
+  const str = String(text).slice(0, 24);
+  const cvs = document.createElement('canvas');
+  const m = cvs.getContext('2d');
+  const font = '600 30px sans-serif';
+  m.font = font;
+  const tw = Math.min(Math.ceil(m.measureText(str).width), 360);
+  const padX = 26, tail = 16;
+  const w = tw + padX * 2;
+  const bodyH = 58;
+  cvs.width = w;
+  cvs.height = bodyH + tail;
+  const c = cvs.getContext('2d');
+  c.font = font;
+  const rr = (x, y, ww, hh, r) => {
+    if (c.roundRect) { c.beginPath(); c.roundRect(x, y, ww, hh, r); }
+    else { c.beginPath(); c.rect(x, y, ww, hh); }
+  };
+  c.fillStyle = 'rgba(255,255,255,0.96)';
+  rr(2, 2, w - 4, bodyH - 4, 18);
+  c.fill();
+  c.beginPath(); // 下向きのしっぽ
+  c.moveTo(w / 2 - 11, bodyH - 5);
+  c.lineTo(w / 2 + 11, bodyH - 5);
+  c.lineTo(w / 2, bodyH + tail - 4);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#12203a';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillText(str, w / 2, (bodyH - 4) / 2 + 2);
+
+  const tex = new THREE.CanvasTexture(cvs);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex, depthWrite: false, depthTest: false, transparent: true,
+  }));
+  const scaleH = 0.6;
+  sp.scale.set(scaleH * (cvs.width / cvs.height), scaleH, 1);
+  sp.center.set(0.5, 0);
+  sp.position.y = 1.85;
+  sp.renderOrder = 999;
+  return sp;
+}
+
+// 吹き出し Sprite を破棄 (テクスチャ/マテリアルも解放)
+export function disposeBubble(sp) {
+  if (!sp) return;
+  sp.material.map?.dispose();
+  sp.material.dispose();
+}
+
 export class Player {
   constructor(scene, world) {
     this.world = world;
+    this.scene = scene;
+    this.bubble = null;       // 頭上の吹き出し (コメント)
+    this.bubbleT = 0;
     this.pos = new THREE.Vector3();
     this.vel = new THREE.Vector3();
     this.grounded = false;
@@ -70,6 +126,14 @@ export class Player {
 
   setColor(hex) {
     this.mesh.children[0].material.color.setHex(hex);
+  }
+
+  // 頭上にコメントの吹き出しを出す (数秒で自動的に消える)
+  say(text) {
+    if (this.bubble) { this.scene.remove(this.bubble); disposeBubble(this.bubble); }
+    this.bubble = makeBubble(text);
+    this.scene.add(this.bubble);
+    this.bubbleT = 5;
   }
 
   spawn() {
@@ -318,6 +382,17 @@ export class Player {
       this.shadow.scale.setScalar(0.6 + 0.4 * fall);
     } else {
       this.shadow.visible = false;
+    }
+
+    // 頭上の吹き出しを追従させ、寿命が尽きたら消す
+    if (this.bubble) {
+      this.bubble.position.set(this.pos.x, this.pos.y + 0.9, this.pos.z);
+      this.bubbleT -= dt;
+      if (this.bubbleT <= 0) {
+        this.scene.remove(this.bubble);
+        disposeBubble(this.bubble);
+        this.bubble = null;
+      }
     }
   }
 

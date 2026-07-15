@@ -45,6 +45,8 @@ export class Input {
 
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
+      // テキスト入力 (コメント欄など) にフォーカス中はゲーム操作へ流さない
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
       this._keys.add(e.code);
       if (e.code === 'Space' && this.enabled) {
         this._jump = true;

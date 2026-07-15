@@ -49,6 +49,12 @@ const me = {
 localStorage.setItem(STORAGE.COLOR, String(me.color));
 player.setColor(PLAYER_COLORS[me.color % PLAYER_COLORS.length]);
 
+// プレイヤーカラー番号 → CSS 色文字列 (コメントの名前色に使う)
+const colorHex = (idx) => {
+  const n = PLAYER_COLORS.length;
+  return '#' + PLAYER_COLORS[(((idx | 0) % n) + n) % n].toString(16).padStart(6, '0');
+};
+
 // 「下寄り表示」トグル (即時反映・保存)。自機を画面下1/3あたりに置き、上を広く見せる
 const lowCam = document.getElementById('lowCam');
 function applyLowCam(on) {
@@ -99,6 +105,11 @@ if (net.available) {
         if (state !== 'title' && name) ui.toast(`${String(name).slice(0, 12)} さんが登り始めた`);
       },
       onLeave: (id) => ghosts.remove(id),
+      onChat: (p) => {
+        // 他プレイヤーのコメント: 左のフィード + そのキャラの頭上に吹き出し
+        ui.addChat(p.n, p.t, colorHex(p.c));
+        ghosts.say(p.i, p.t);
+      },
     });
   } catch (err) {
     console.warn('[net] join failed', err);
@@ -144,6 +155,7 @@ function goHome() {
   }
   state = 'title';
   input.enabled = false;
+  ui.closeChat();
   ui.closeRanking();
   ui.hideClear();
   ui.hideCombo();
@@ -152,6 +164,26 @@ function goHome() {
 document.getElementById('btnHome').addEventListener('click', () => {
   if (state === 'title') return;
   goHome();
+});
+
+// ================== コメント (チャット) ==================
+function sendChat() {
+  const text = ui.el.chatInput.value.trim().slice(0, 40);
+  ui.closeChat();
+  if (!text) return;
+  net.sendChat(me, text);                        // 全員へ送信
+  ui.addChat(me.name, text, colorHex(me.color), true); // 自分のフィード
+  player.say(text);                              // 自機の頭上に吹き出し
+}
+document.getElementById('btnChat').addEventListener('click', () => {
+  if (state === 'title') return;
+  if (ui.chatOpen) ui.closeChat();
+  else ui.openChat();
+});
+document.getElementById('chatSend').addEventListener('click', sendChat);
+ui.el.chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
+  else if (e.key === 'Escape') { e.preventDefault(); ui.closeChat(); }
 });
 document.getElementById('btnClearRestart').addEventListener('click', () => {
   player.spawnKeepBest();
@@ -529,7 +561,7 @@ requestAnimationFrame(frame);
 // ?debug 付きで開いた時のみ内部オブジェクトを公開 (動作検証用)
 if (location.search.includes('debug')) {
   window.__game = {
-    player, world, net, camera, THREE, ui, fx, sfx,
+    player, world, net, camera, THREE, ui, fx, sfx, ghosts,
     get state() { return state; },
     get camYaw() { return camYaw; },
     get combo() { return combo; },

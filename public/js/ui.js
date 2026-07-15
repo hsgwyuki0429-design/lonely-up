@@ -24,7 +24,45 @@ export class UI {
       combo: document.getElementById('combo'),
       comboNum: document.getElementById('comboNum'),
       rewards: document.getElementById('rewards'),
+      chatBar: document.getElementById('chatBar'),
+      chatInput: document.getElementById('chatInput'),
+      chatFeed: document.getElementById('chatFeed'),
     };
+  }
+
+  // ===== コメント (チャット) =====
+  // 入力バーを開いて即入力できるようにする
+  openChat() {
+    this.el.chatBar.classList.remove('hidden');
+    this.el.chatInput.focus();
+  }
+
+  closeChat() {
+    this.el.chatBar.classList.add('hidden');
+    this.el.chatInput.value = '';
+    this.el.chatInput.blur();
+  }
+
+  get chatOpen() {
+    return !this.el.chatBar.classList.contains('hidden');
+  }
+
+  // 画面左のフィードに1行追加する。数秒で自動的に消える。
+  addChat(name, text, cssColor = '#ffe08a', isMe = false) {
+    const row = document.createElement('div');
+    row.className = 'chatrow' + (isMe ? ' me' : '');
+    const nm = document.createElement('span');
+    nm.className = 'cname';
+    nm.style.color = cssColor;
+    nm.textContent = `${String(name).slice(0, 12)}：`;
+    const tx = document.createElement('span');
+    tx.className = 'ctext';
+    tx.textContent = String(text).slice(0, 40);
+    row.append(nm, tx);
+    this.el.chatFeed.appendChild(row);
+    setTimeout(() => row.classList.add('fade'), 5000);
+    setTimeout(() => row.remove(), 5800);
+    while (this.el.chatFeed.children.length > 6) this.el.chatFeed.firstChild.remove();
   }
 
   // コンボ数に応じて過熱していく色 (黄 → 橙 → 赤熱)

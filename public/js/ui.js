@@ -28,6 +28,8 @@ export class UI {
       chatInput: document.getElementById('chatInput'),
       chatFeed: document.getElementById('chatFeed'),
       chatStamps: document.getElementById('chatStamps'),
+      chatLogPanel: document.getElementById('chatLogPanel'),
+      chatLogList: document.getElementById('chatLogList'),
       onlinePanel: document.getElementById('onlinePanel'),
       onlineList: document.getElementById('onlineList'),
       onlineSummary: document.getElementById('onlineSummary'),
@@ -123,6 +125,42 @@ export class UI {
     setTimeout(() => row.classList.add('fade'), 5000);
     setTimeout(() => row.remove(), 5800);
     while (this.el.chatFeed.children.length > 6) this.el.chatFeed.firstChild.remove();
+  }
+
+  // ===== チャット履歴 (消えずに残るログ) =====
+  openChatLog() { this.el.chatLogPanel.classList.remove('hidden'); }
+  closeChatLog() { this.el.chatLogPanel.classList.add('hidden'); }
+  get chatLogOpen() { return !this.el.chatLogPanel.classList.contains('hidden'); }
+
+  // log: [{ name, text, color, isMe, t(ms) }] を古い順に描画し、最下部までスクロール
+  renderChatLog(log) {
+    const list = this.el.chatLogList;
+    list.innerHTML = '';
+    if (!log.length) {
+      const d = document.createElement('div');
+      d.className = 'rankrow';
+      d.textContent = 'まだコメントはありません。';
+      list.appendChild(d);
+      return;
+    }
+    for (const e of log) {
+      const row = document.createElement('div');
+      row.className = 'logrow' + (e.isMe ? ' me' : '');
+      const time = document.createElement('span');
+      time.className = 'ltime';
+      const d = new Date(e.t || Date.now());
+      time.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      const nm = document.createElement('span');
+      nm.className = 'lname';
+      nm.style.color = e.color || '#ffe08a';
+      nm.textContent = `${String(e.name).slice(0, 12)}：`;
+      const tx = document.createElement('span');
+      tx.className = 'ltext';
+      tx.textContent = String(e.text).slice(0, 40);
+      row.append(time, nm, tx);
+      list.appendChild(row);
+    }
+    list.scrollTop = list.scrollHeight; // 最新を表示
   }
 
   // コンボ数に応じて過熱していく色 (黄 → 橙 → 赤熱)

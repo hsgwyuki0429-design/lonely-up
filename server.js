@@ -17,6 +17,29 @@ function passwordOk(given) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// 今まさに遊んでいる人の端末には、削除前の自己ベストが残っている。放っておくと
+// 「ホームに戻る」「タブを裏に回す」「一定間隔ごとの自動送信」のたびに、その古い
+// ベストが submitScore で再アップロードされ、せっかく消したランキングが復活してしまう。
+// これを防ぐため、DB削除の直後に「あなたのローカルの自己ベストも消してください」という
+// 合図を、ゲーム内で使っているのと同じ Realtime Broadcast チャンネルへ流す。
+// (Supabase の「サーバーから REST で Broadcast する」機能。失敗しても DB 削除自体は
+//  成功しているので、ここは best-effort = 失敗しても無視する)
+async function broadcastAdminReset(url, key) {
+  try {
+    await fetch(`${url}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [{ topic: 'lonely-up:lobby', event: 'admin_reset', payload: {} }],
+      }),
+    });
+  } catch { /* 通知に失敗しても DB 削除自体は成功しているので無視する */ }
+}
+
 // Runtime config injection: Render env vars -> browser.
 // The Supabase anon key is safe to expose (protected by RLS).
 app.get('/env.js', (_req, res) => {
@@ -65,6 +88,7 @@ app.post('/admin/reset-rankings', async (req, res) => {
       return res.status(502).json({ ok: false, error: `Supabase ${r.status}: ${body.slice(0, 200)}` });
     }
     const rows = await r.json().catch(() => []);
+    await broadcastAdminReset(url, key); // 接続中の全員へ「ローカルの自己ベストも消して」を通知
     return res.json({ ok: true, deleted: Array.isArray(rows) ? rows.length : null });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });

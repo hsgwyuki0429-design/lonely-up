@@ -60,7 +60,7 @@ export class Net {
   }
 
   // ===== オンラインプレイ (Realtime Broadcast + Presence) =====
-  join(me, { onPos, onCount, onJoin, onLeave, onChat } = {}) {
+  join(me, { onPos, onCount, onJoin, onLeave, onChat, onAdminReset } = {}) {
     if (!this.sb) return;
     this._me = me;
     this.channel = this.sb.channel('lonely-up:lobby', {
@@ -82,6 +82,11 @@ export class Net {
       })
       .on('broadcast', { event: 'chat' }, ({ payload }) => {
         if (payload?.i !== this.cid) onChat?.(payload);
+      })
+      // 管理者がランキングをリセットした合図。今まさに繋いでいる全員 (自分含む) が対象。
+      // これを受けたら、ローカルの自己ベストを再送信してしまわないよう消す必要がある。
+      .on('broadcast', { event: 'admin_reset' }, () => {
+        onAdminReset?.();
       })
       .on('presence', { event: 'sync' }, () => {
         const state = this.channel.presenceState();

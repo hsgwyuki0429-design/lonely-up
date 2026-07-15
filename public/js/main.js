@@ -123,6 +123,17 @@ if (net.available) {
         logChat(p.n, p.t, colorHex(p.c), false);
         ghosts.say(p.i, p.t);
       },
+      onAdminReset: () => {
+        // 管理者がランキングを全消去した合図。ここでローカルの自己ベストも消しておかないと、
+        // ホームに戻る / タブを裏に回す / 定期送信のたびに古いベストが再アップロードされ、
+        // せっかく消したランキングが復活してしまう。今の走行中の記録には影響しない
+        // (このフレーム以降も height > allTimeBest なら通常どおり更新・送信される)。
+        allTimeBest = 0;
+        bestClearMs = null;
+        localStorage.removeItem(STORAGE.BEST);
+        localStorage.removeItem(STORAGE.CLEAR_MS);
+        ui.toast('管理者によって世界ランキングがリセットされました');
+      },
     });
   } catch (err) {
     console.warn('[net] join failed', err);

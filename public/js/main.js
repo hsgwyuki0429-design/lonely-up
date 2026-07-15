@@ -119,8 +119,8 @@ if (net.available) {
       },
       onLeave: (id) => ghosts.remove(id),
       onChat: (p) => {
-        // 他プレイヤーのコメント: 左のフィード + そのキャラの頭上に吹き出し
-        ui.addChat(p.n, p.t, colorHex(p.c));
+        // 他プレイヤーのコメント: 左のフィード + 履歴 + そのキャラの頭上に吹き出し
+        logChat(p.n, p.t, colorHex(p.c), false);
         ghosts.say(p.i, p.t);
       },
     });
@@ -174,6 +174,7 @@ function goHome() {
   net.selfY = 0; // タイトルでは待機中 (高さ0)
   setStampEdit(false);
   ui.closeChat();
+  ui.closeChatLog();
   closeOnline();
   ui.closeRanking();
   ui.hideClear();
@@ -255,13 +256,35 @@ document.getElementById('btnUpdateTitle')
   ?.addEventListener('click', (e) => updateToLatest(e.currentTarget));
 
 // ================== コメント (チャット) ==================
+// チャット履歴 (消えずに残るログ)。端末に保存し、リロードしても残る。
+const CHAT_LOG_MAX = 100;
+let chatHistory = loadChatHistory();
+function loadChatHistory() {
+  try {
+    const a = JSON.parse(localStorage.getItem(STORAGE.CHAT_LOG) || '[]');
+    if (Array.isArray(a)) return a.slice(-CHAT_LOG_MAX);
+  } catch { /* 壊れていたら空から */ }
+  return [];
+}
+function saveChatHistory() {
+  try { localStorage.setItem(STORAGE.CHAT_LOG, JSON.stringify(chatHistory)); } catch { /* 容量超過等は無視 */ }
+}
+// 受信・送信どちらも通す: ライブフィード表示 + 履歴に追記 (開いていれば再描画)
+function logChat(name, text, color, isMe) {
+  ui.addChat(name, text, color, isMe);
+  chatHistory.push({ name: String(name).slice(0, 12), text: String(text).slice(0, 40), color, isMe, t: Date.now() });
+  if (chatHistory.length > CHAT_LOG_MAX) chatHistory.shift();
+  saveChatHistory();
+  if (ui.chatLogOpen) ui.renderChatLog(chatHistory);
+}
+
 // コメントを送信 (自由入力・スタンプ共通の実処理)
 function postComment(text) {
   const t = String(text).trim().slice(0, 40);
   if (!t) return;
-  net.sendChat(me, t);                           // 全員へ送信
-  ui.addChat(me.name, t, colorHex(me.color), true); // 自分のフィード
-  player.say(t);                                 // 自機の頭上に吹き出し
+  net.sendChat(me, t);                            // 全員へ送信
+  logChat(me.name, t, colorHex(me.color), true);  // フィード + 履歴
+  player.say(t);                                  // 自機の頭上に吹き出し
 }
 function sendChatInput() {
   const text = ui.el.chatInput.value;
@@ -336,6 +359,14 @@ ui.el.chatInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); sendChatInput(); }
   else if (e.key === 'Escape') { e.preventDefault(); ui.closeChat(); }
 });
+// チャット履歴パネル (履歴はコメントの度に保存され、リロードしても残る)
+document.getElementById('btnChatLog').addEventListener('click', () => {
+  setStampEdit(false);
+  ui.closeChat();            // 入力バー(z70)がパネル(z50)を覆わないよう閉じる
+  ui.renderChatLog(chatHistory);
+  ui.openChatLog();
+});
+document.getElementById('btnChatLogClose').addEventListener('click', () => ui.closeChatLog());
 document.getElementById('btnClearRestart').addEventListener('click', () => {
   player.spawnKeepBest();
   runStart = performance.now();

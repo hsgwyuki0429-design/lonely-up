@@ -60,7 +60,10 @@
   <div id="chatBar" class="hidden">
     <div id="chatStampHead">
       <span class="stamphint">スタンプを押すだけで送信</span>
-      <button id="btnStampEdit">編集</button>
+      <span class="chatheadbtns">
+        <button id="btnChatLog">🕘 履歴</button>
+        <button id="btnStampEdit">編集</button>
+      </span>
     </div>
     <div id="chatStamps"></div>
     <div id="chatInputRow">
@@ -102,6 +105,13 @@
   <h2>🏆 世界ランキング</h2>
   <div id="rankList" class="ranklist"><div class="rankrow">読み込み中...</div></div>
   <button id="btnRankClose" class="primary">とじる</button>
+</div>
+
+<!-- ===== チャット履歴 ===== -->
+<div id="chatLogPanel" class="panel hidden">
+  <h2>💬 チャット履歴</h2>
+  <div id="chatLogList" class="ranklist"></div>
+  <button id="btnChatLogClose" class="primary">とじる</button>
 </div>
 
 <!-- ===== オンラインの人 ===== -->

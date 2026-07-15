@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG, STORAGE, PLAYER_COLORS, VERSION } from './config.js';
+import { CONFIG, STORAGE, PLAYER_COLORS, VERSION, DEFAULT_STAMPS } from './config.js';
 import { World, JACKPOT_COLORS } from './world.js';
 import { Player } from './player.js';
 import { Input } from './input.js';
@@ -155,6 +155,7 @@ function goHome() {
   }
   state = 'title';
   input.enabled = false;
+  setStampEdit(false);
   ui.closeChat();
   ui.closeRanking();
   ui.hideClear();
@@ -167,22 +168,85 @@ document.getElementById('btnHome').addEventListener('click', () => {
 });
 
 // ================== コメント (チャット) ==================
-function sendChat() {
-  const text = ui.el.chatInput.value.trim().slice(0, 40);
-  ui.closeChat();
-  if (!text) return;
-  net.sendChat(me, text);                        // 全員へ送信
-  ui.addChat(me.name, text, colorHex(me.color), true); // 自分のフィード
-  player.say(text);                              // 自機の頭上に吹き出し
+// コメントを送信 (自由入力・スタンプ共通の実処理)
+function postComment(text) {
+  const t = String(text).trim().slice(0, 40);
+  if (!t) return;
+  net.sendChat(me, t);                           // 全員へ送信
+  ui.addChat(me.name, t, colorHex(me.color), true); // 自分のフィード
+  player.say(t);                                 // 自機の頭上に吹き出し
 }
+function sendChatInput() {
+  const text = ui.el.chatInput.value;
+  ui.el.chatInput.value = '';
+  ui.closeChat();
+  postComment(text);
+}
+
+// ---- スタンプ (定型文): 6個を保存し、押すだけで送れる。編集して保存できる ----
+let stamps = loadStamps();
+let stampsEditing = false;
+const stampsBox = ui.el.chatStamps;
+const btnStampEdit = document.getElementById('btnStampEdit');
+
+function loadStamps() {
+  try {
+    const raw = localStorage.getItem(STORAGE.STAMPS);
+    const a = raw && JSON.parse(raw);
+    if (Array.isArray(a) && a.length) {
+      // 常に6枠に整える (足りなければ既定で補完)
+      return Array.from({ length: 6 }, (_, i) =>
+        String(a[i] ?? DEFAULT_STAMPS[i] ?? '').slice(0, 40));
+    }
+  } catch { /* 壊れていたら既定へ */ }
+  return DEFAULT_STAMPS.slice();
+}
+function saveStamps() {
+  localStorage.setItem(STORAGE.STAMPS, JSON.stringify(stamps));
+}
+function renderStamps() {
+  stampsBox.innerHTML = '';
+  stampsBox.classList.toggle('editing', stampsEditing);
+  stamps.forEach((s, i) => {
+    if (stampsEditing) {
+      const inp = document.createElement('input');
+      inp.className = 'stamp';
+      inp.type = 'text';
+      inp.maxLength = 40;
+      inp.value = s;
+      inp.placeholder = `スタンプ${i + 1}`;
+      inp.addEventListener('input', () => { stamps[i] = inp.value; });
+      stampsBox.appendChild(inp);
+    } else {
+      const b = document.createElement('button');
+      b.className = 'stamp';
+      b.textContent = s || `（空${i + 1}）`;
+      b.addEventListener('click', () => { ui.closeChat(); postComment(s); });
+      stampsBox.appendChild(b);
+    }
+  });
+}
+function setStampEdit(on) {
+  if (stampsEditing === on) return;
+  stampsEditing = on;
+  if (!on) { // 編集終了 → 整形して保存
+    stamps = stamps.map((s) => String(s).trim().slice(0, 40));
+    saveStamps();
+  }
+  btnStampEdit.textContent = on ? '完了' : '編集';
+  renderStamps();
+}
+btnStampEdit.addEventListener('click', () => setStampEdit(!stampsEditing));
+renderStamps();
+
 document.getElementById('btnChat').addEventListener('click', () => {
   if (state === 'title') return;
-  if (ui.chatOpen) ui.closeChat();
+  if (ui.chatOpen) { setStampEdit(false); ui.closeChat(); }
   else ui.openChat();
 });
-document.getElementById('chatSend').addEventListener('click', sendChat);
+document.getElementById('chatSend').addEventListener('click', sendChatInput);
 ui.el.chatInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
+  if (e.key === 'Enter') { e.preventDefault(); sendChatInput(); }
   else if (e.key === 'Escape') { e.preventDefault(); ui.closeChat(); }
 });
 document.getElementById('btnClearRestart').addEventListener('click', () => {

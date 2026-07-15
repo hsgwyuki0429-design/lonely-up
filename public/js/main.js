@@ -48,7 +48,6 @@ const me = {
 };
 localStorage.setItem(STORAGE.COLOR, String(me.color));
 player.setColor(PLAYER_COLORS[me.color % PLAYER_COLORS.length]);
-fx.setTrailColor(PLAYER_COLORS[me.color % PLAYER_COLORS.length]); // コメット残像を自機色に
 
 // 「下寄り表示」トグル (即時反映・保存)。自機を画面下1/3あたりに置き、上を広く見せる
 const lowCam = document.getElementById('lowCam');
@@ -112,7 +111,6 @@ function startRun() {
   localStorage.setItem(STORAGE.NAME, me.name);
   sfx.unlock();
   player.spawn();
-  fx.hideTrail();
   camYaw = Math.PI;
   camPitch = 0.35;
   camPullT = 0;
@@ -131,7 +129,6 @@ document.getElementById('btnStart').addEventListener('click', startRun);
 document.getElementById('btnRestart').addEventListener('click', () => {
   if (state === 'title') return;
   player.spawnKeepBest();
-  fx.hideTrail();
   runStart = performance.now();
   nextMilestone = 50;
   resetCombo();
@@ -147,7 +144,6 @@ function goHome() {
   }
   state = 'title';
   input.enabled = false;
-  fx.hideTrail();
   ui.closeRanking();
   ui.hideClear();
   ui.hideCombo();
@@ -159,7 +155,6 @@ document.getElementById('btnHome').addEventListener('click', () => {
 });
 document.getElementById('btnClearRestart').addEventListener('click', () => {
   player.spawnKeepBest();
-  fx.hideTrail();
   runStart = performance.now();
   nextMilestone = 50;
   resetCombo();
@@ -369,21 +364,12 @@ function frame(now) {
         });
       } else if (ev.t === 'land') {
         const k = THREE.MathUtils.clamp(ev.impact / 16, 0, 1);
-        if (ev.impact > 2.5) {
-          sfx.land(k);
-          fx.burst(player.pos.x, feetY, player.pos.z, {
-            count: Math.round(6 + k * 14), color: 0xf0ead8,
-            speed: 1 + k * 3, up: 0.8 + k, gravity: 6, life: 0.45 + k * 0.3, spread: 0.3,
-          });
-          // 着地の衝撃波リング (強い着地ほど大きく広がる)
-          fx.shockwave(player.pos.x, feetY + 0.03, player.pos.z, {
-            color: player.standing?.colorHex ?? 0xffffff,
-            r0: 0.5, r1: 1.8 + k * 3.2, life: 0.4 + k * 0.25,
-          });
-        }
+        if (ev.impact > 2.5) sfx.land(k);
+        // 着地の手応えはシェイクで表現 (強い着地ほど大きく揺れ、特大は一瞬反転する)
         if (ev.impact > 9) {
-          fx.shake(0.2 + k * 0.3); // 強い着地は画面も揺れる
+          fx.shake(0.2 + k * 0.35);
           fx.vibrate(15);
+          if (ev.impact > 12) fx.invert(70);
         }
         // 着地したら次の足場の方向へ視点を引っ張る
         pullCamToNext();
@@ -422,9 +408,8 @@ function frame(now) {
               gravity: 7, life: 0.8, spread: 0.4,
             });
             fx.glow(jackpot, 0.55);
-            fx.shockwave(player.pos.x, feetY + 0.03, player.pos.z, {
-              color: jackpot, r0: 0.5, r1: 4.5, life: 0.6,
-            });
+            fx.shake(0.28);
+            fx.invert(90);
             fx.vibrate(18);
             ui.floatReward('✨', `#${jackpot.toString(16).padStart(6, '0')}`);
           } else {
@@ -451,7 +436,6 @@ function frame(now) {
         sfx.tap();
       } else if (ev.t === 'fell') {
         sfx.fall();
-        fx.hideTrail(); // 残像がスタート地点まで一本の線を引かないようリセット
         ui.toast('落ちた……');
         fx.shake(0.65);
         fx.flash('rgba(255, 60, 60, 0.32)', 220);
@@ -482,9 +466,7 @@ function frame(now) {
         count: 28, color: 0xffd166, speed: 4, up: 2.5,
         gravity: 5, life: 0.9, spread: 0.4,
       });
-      // 金色の二重衝撃波 (足元に広がる輪 + 噴き上がる縦の輪)
-      fx.shockwave(player.pos.x, feetY + 0.03, player.pos.z, { color: 0xffe08a, r0: 0.6, r1: 5.5, life: 0.7 });
-      fx.shockwave(player.pos.x, player.pos.y, player.pos.z, { color: 0xffd166, r0: 0.5, r1: 4, life: 0.6, up: true });
+      fx.invert(110); // マイルストーンは画面反転で強調
       ui.popHeight();
       nextMilestone += 50;
     }
@@ -513,14 +495,9 @@ function frame(now) {
           count: 18, color: c, speed: 4.5, up: 5,
           gravity: 4, life: 1.4, spread: 0.6,
         });
-        // 虹色の衝撃波が次々と噴き上がる
-        setTimeout(() => fx.shockwave(player.pos.x, player.pos.y, player.pos.z, {
-          color: c, r0: 0.5, r1: 6, life: 0.8, up: true,
-        }), i * 90);
       });
-      fx.shockwave(player.pos.x, player.pos.y - CONFIG.PLAYER_HALF_H + 0.03, player.pos.z, {
-        color: 0xffe08a, r0: 0.6, r1: 7, life: 0.9,
-      });
+      // 登頂は画面反転を数回たたみかけて派手に締める
+      [0, 160, 320].forEach((ms) => setTimeout(() => fx.invert(120), ms));
       ui.showClear(clearMsThisRun);
       net.submitScore(me.name, Math.max(allTimeBest, world.goalY), bestClearMs);
     }
@@ -540,9 +517,6 @@ function frame(now) {
     camYaw += dt * 0.1;
   }
 
-  if (state === 'play' || state === 'clear') {
-    fx.updateTrail(player.pos.x, player.pos.y, player.pos.z); // 自機を追うコメット残像
-  }
   updateCamera(dt);
   ghosts.tick(dt);
   world.update(t, dt, player, renderer, scene);

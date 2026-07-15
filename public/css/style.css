@@ -23,6 +23,9 @@ html, body {
   touch-action: none;
 }
 
+/* 決定的な瞬間の画面反転 (ネガ) フラッシュ */
+#game.invert { filter: invert(1); }
+
 .hidden { display: none !important; }
 
 /* ===== HUD ===== */

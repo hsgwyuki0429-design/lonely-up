@@ -59,7 +59,6 @@ export class World {
     this.generate();
     this.buildMeshes();
     this.buildSky();
-    this.buildFlowGuides();
   }
 
   // ================== 塔の生成 (tower.js の純粋関数を利用) ==================
@@ -348,44 +347,6 @@ export class World {
     this.scene.fog = new THREE.Fog(0xcfe8f8, 35, 150);
   }
 
-  // 助走ゾーン (flow) の各足場上面に、次の足場を指す光る矢印を1個ずつ置く。
-  // 「前へ進み続けろ」を視覚で伝えつつ、区間の性格を彩る。全部を1つの
-  // InstancedMesh にまとめて描画コールは1回に抑える。
-  buildFlowGuides() {
-    const flows = [];
-    for (let i = 0; i < this.platforms.length; i++) {
-      const p = this.platforms[i];
-      if (p.seg !== 'flow' || p.kind !== 'box') continue; // 助走の走行パッドのみ
-      const next = this.platforms[i + 1];
-      if (!next) continue;
-      flows.push({ p, dx: next.x - p.x, dz: next.z - p.z });
-    }
-    if (!flows.length) return;
-    // 平たい矢じり (三角錐を横倒しにして進行方向へ向ける)
-    const geo = new THREE.ConeGeometry(0.34, 0.7, 4);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xffe08a, transparent: true, opacity: 0.85,
-      depthWrite: false, blending: THREE.AdditiveBlending,
-    });
-    const inst = new THREE.InstancedMesh(geo, mat, flows.length);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const e = new THREE.Euler();
-    const pos = new THREE.Vector3();
-    const scl = new THREE.Vector3(1, 1, 1);
-    flows.forEach((f, i) => {
-      const yaw = Math.atan2(f.dx, f.dz);
-      e.set(Math.PI / 2, yaw, 0); // 錐を前へ倒し、進行方向へ向ける
-      q.setFromEuler(e);
-      pos.set(f.p.x, f.p.y + f.p.hy + 0.4, f.p.z);
-      inst.setMatrixAt(i, m.compose(pos, q, scl));
-    });
-    inst.instanceMatrix.needsUpdate = true;
-    inst.frustumCulled = false;
-    this.flowGuides = inst;
-    this.scene.add(inst);
-  }
-
   // 足元の影用: プレイヤー真下の足場の上面 y を返す
   groundTopBelow(x, z, y, t, tmpBox) {
     let best = null;
@@ -431,9 +392,6 @@ export class World {
 
     // 漂う光の粒: 塔をゆっくり回して空間に流れを与える
     if (this.motes) this.motes.rotation.y = t * 0.03;
-
-    // 助走ゾーンの矢印: 明滅させて「前へ」を呼びかける
-    if (this.flowGuides) this.flowGuides.material.opacity = 0.6 + 0.3 * Math.sin(t * 3);
   }
 
   // 崩れる足場: プレイヤーが乗ると CRUMBLE_DELAY 秒後に消え、CRUMBLE_RESPAWN 秒後に復活。

@@ -750,3 +750,31 @@ if (location.search.includes('debug')) {
     get combo() { return combo; },
   };
 }
+
+// ?admin 付きで開いた時だけ、管理者用「ランキングをリセット」ボタンを出す。
+// 実際の削除はサーバー側 (パスワード + service_role 必須) で行うので、
+// この URL を知られてもパスワードが無ければ何もできない。
+if (location.search.includes('admin')) {
+  const ab = document.createElement('button');
+  ab.className = 'adminbtn';
+  ab.textContent = '🔧 ランキングをリセット';
+  ab.addEventListener('click', async () => {
+    const pw = prompt('管理パスワードを入力');
+    if (!pw) return;
+    ab.disabled = true;
+    try {
+      const r = await fetch('/admin/reset-rankings', {
+        method: 'POST',
+        headers: { 'x-admin-password': pw },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) ui.toast(`ランキングをリセットしました（${j.deleted ?? '?'}件削除）`);
+      else ui.toast(`失敗: ${j.error || `HTTP ${r.status}`}`);
+    } catch {
+      ui.toast('通信エラー');
+    } finally {
+      ab.disabled = false;
+    }
+  });
+  document.body.appendChild(ab);
+}

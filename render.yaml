@@ -13,3 +13,8 @@ services:
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+      # 管理者用リセット機能を使う場合のみ設定 (未設定ならリセットは無効)
+      - key: SUPABASE_SERVICE_ROLE_KEY   # Supabase > Project Settings > API の service_role キー
+        sync: false
+      - key: ADMIN_PASSWORD              # 管理者リセットの合言葉 (自分で決める)
+        sync: false

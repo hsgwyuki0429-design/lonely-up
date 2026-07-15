@@ -475,6 +475,24 @@ html, body {
 }
 .linkbtn:active { opacity: 0.7; }
 
+/* ?admin 時だけ表示する管理者用リセットボタン */
+.adminbtn {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  transform: translateX(-50%);
+  z-index: 90;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 120, 120, 0.7);
+  border-radius: 12px;
+  background: rgba(120, 20, 20, 0.85);
+  color: #ffdede;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.adminbtn:disabled { opacity: 0.5; }
+
 .howto {
   display: flex;
   flex-direction: column;

@@ -5,6 +5,15 @@ function fmtTime(ms) {
   return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
+// 0.1秒精度のタイム表示 (チェックポイント区間タイム用)
+function fmtTimeMs(ms) {
+  const t = Math.max(ms, 0);
+  const m = Math.floor(t / 60000);
+  const s = Math.floor((t % 60000) / 1000);
+  const d = Math.floor((t % 1000) / 100);
+  return `${m}:${String(s).padStart(2, '0')}.${d}`;
+}
+
 export class UI {
   constructor() {
     this.el = {
@@ -20,6 +29,7 @@ export class UI {
       rankList: document.getElementById('rankList'),
       clearPanel: document.getElementById('clearPanel'),
       clearTime: document.getElementById('clearTime'),
+      clearSplits: document.getElementById('clearSplits'),
       toasts: document.getElementById('toasts'),
       combo: document.getElementById('combo'),
       comboNum: document.getElementById('comboNum'),
@@ -252,8 +262,38 @@ export class UI {
     while (this.el.toasts.children.length > 4) this.el.toasts.firstChild.remove();
   }
 
-  showClear(ms) {
+  // splits: [{ label, ms, best }] を渡すとチェックポイント区間タイム表を描画する。
+  // 省略時 (ランキングから戻った時など) は前回の内容をそのまま残す。
+  showClear(ms, splits) {
     this.el.clearTime.textContent = fmtTime(ms);
+    const box = this.el.clearSplits;
+    if (box && splits) {
+      box.innerHTML = '';
+      let prevMs = 0;
+      for (const s of splits) {
+        const row = document.createElement('div');
+        row.className = 'splitrow';
+        const lab = document.createElement('span');
+        lab.className = 'slabel';
+        lab.textContent = s.label;
+        const sect = document.createElement('span');
+        sect.className = 'ssect';
+        sect.textContent = `区間 ${fmtTimeMs(s.ms - prevMs)}`;
+        const tot = document.createElement('span');
+        tot.className = 'stotal';
+        tot.textContent = fmtTimeMs(s.ms);
+        const diff = document.createElement('span');
+        diff.className = 'sdiff';
+        if (s.best != null) {
+          if (s.ms <= s.best) { diff.textContent = 'ベスト!'; diff.classList.add('gold'); }
+          else { diff.textContent = `+${((s.ms - s.best) / 1000).toFixed(1)}s`; diff.classList.add('slow'); }
+        }
+        row.append(lab, sect, tot, diff);
+        box.appendChild(row);
+        prevMs = s.ms;
+      }
+      box.classList.toggle('hidden', splits.length === 0);
+    }
     this.el.clearPanel.classList.remove('hidden');
   }
 
@@ -311,4 +351,4 @@ export class UI {
   }
 }
 
-export { fmtTime };
+export { fmtTime, fmtTimeMs };

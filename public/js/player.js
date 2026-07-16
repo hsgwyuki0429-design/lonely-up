@@ -179,6 +179,13 @@ export class Player {
       else this.pos.y += d; // 上下に動く足場に乗せて運ぶ
     }
 
+    // --- ベルトコンベアの上では流される (逆走・横流しに踏ん張って抵抗する) ---
+    // 位置だけを動かし速度は変えないので、飛び出した後のジャンプ到達距離には影響しない。
+    if (this.grounded && this.standing && this.standing.belt) {
+      this.pos.x += this.standing.belt.x * dt;
+      this.pos.z += this.standing.belt.z * dt;
+    }
+
     // --- 入力 → カメラ基準の移動ベクトル ---
     // 最近の3Dゲーム標準: スティックを倒した方向 (カメラ基準) へ全方向そのまま移動し、
     // キャラクターは進行方向を向くように旋回する。傾け量がそのまま速度になる
@@ -188,7 +195,9 @@ export class Player {
     const mz = fz * input.move.y + rz * input.move.x;
     const mag = Math.min(Math.hypot(mx, mz), 1);
 
-    const accel = this.grounded ? C.GROUND_ACCEL : C.AIR_ACCEL;
+    // 氷ブロックの上では加減速が大きく鈍り、勢いを殺せずツルツル滑る (早めの操作が要る)
+    const onIce = this.grounded && this.standing?.kind === 'ice';
+    const accel = this.grounded ? (onIce ? C.ICE_ACCEL : C.GROUND_ACCEL) : C.AIR_ACCEL;
     const speed = C.MOVE_SPEED * (this.bowT > 0 ? 0.25 : 1); // おじぎ中はゆっくり
     const tx = mag > 0.001 ? (mx / Math.hypot(mx, mz)) * speed * mag : 0;
     const tz = mag > 0.001 ? (mz / Math.hypot(mx, mz)) * speed * mag : 0;
@@ -270,6 +279,7 @@ export class Player {
         // 「頭ぶつけ」と誤判定され、体高ぶん下へスナップ → 足場を突き抜けて落下する
         this.pos.y = b.minY - C.PLAYER_HALF_H;
         this.vel.y = 0;
+        this.ceilT = 0.5; // 頭上がふさがっている間はよじ登り補助を止める (真上で振動しない)
       }
     }
 
@@ -282,6 +292,7 @@ export class Player {
     this.pos.z += this.vel.z * dt;
     let wallTop = null; // 横からぶつかったブロックの上面 (自動ジャンプ判定に使う)
     let wallAuto = false; // 動く足場が絡む壁接触 → 入力が無くても自動ジャンプで退避
+    let wallNx = 0, wallNz = 0; // 最後に触れた壁の内向き法線 (よじ登り補助の向き)
     for (const p of near) {
       if (!this.world.isSolid(p, t)) continue; // 消えている足場はすり抜ける
       const b = this.world.aabb(p, t, tmpBox);
@@ -300,10 +311,14 @@ export class Player {
         const target = penL < penR ? b.minX - C.PLAYER_R : b.maxX + C.PLAYER_R;
         this.pos.x += THREE.MathUtils.clamp(target - this.pos.x, -MAX_PUSH, MAX_PUSH);
         this.vel.x = 0;
+        wallNx = penL < penR ? 1 : -1; // ブロックは +x / -x 側にある
+        wallNz = 0;
       } else {
         const target = penN < penF ? b.minZ - C.PLAYER_R : b.maxZ + C.PLAYER_R;
         this.pos.z += THREE.MathUtils.clamp(target - this.pos.z, -MAX_PUSH, MAX_PUSH);
         this.vel.z = 0;
+        wallNz = penN < penF ? 1 : -1;
+        wallNx = 0;
       }
       wallTop = Math.max(wallTop ?? -Infinity, b.maxY);
       // 動く足場に横から押されている / 動く足場に乗ったまま壁に運ばれている。
@@ -321,6 +336,36 @@ export class Player {
       const rise = wallTop - (this.pos.y - C.PLAYER_HALF_H);
       const jumpH = (C.JUMP_VEL * C.JUMP_VEL) / (2 * C.GRAVITY); // 最大ジャンプ高 ≈ 2.09m
       if (rise > 0.2 && rise < jumpH) this.jumpBuffer = C.JUMP_BUFFER;
+    }
+
+    // 空中のよじ登り補助 (マントル): ジャンプの上昇が僅かに足りず目標の側面に
+    // 当たったとき、上面が足のすぐ上 (0.75m 以内) なら縁に手をかけて乗り上げる。
+    // 「あと数センチで届いたのに側面に当たって真下に落ちる」理不尽感を消す。
+    // スティックを壁に向かって押し込んでいる時だけ発動する (壁の横を通過するだけの
+    // ジャンプを邪魔しない)。上昇と一緒に壁の内向きへ少し引き上げ、縁の外での
+    // ホバリングを防ぐ。壁接触が前提の補助なので水平到達距離は伸びない (公平)。
+    this.mantleCd = Math.max((this.mantleCd || 0) - dt, 0);
+    this.ceilT = Math.max((this.ceilT || 0) - dt, 0);
+    if (this.grounded) this.mantleN = 0; // 接地したら連続発動カウントを回復
+    if (!this.grounded && wallTop !== null && mag > 0.3 && this.ceilT <= 0) {
+      const ml = Math.hypot(mx, mz) || 1;
+      const intoWall = (mx * wallNx + mz * wallNz) / ml; // スティックの壁向き成分
+      const rise = wallTop - (this.pos.y - C.PLAYER_HALF_H);
+      // 連続発動は45回 (約0.75秒) まで。狭い隙間に挟まった時に永遠に壁で
+      // 跳ね続けないよう、上限に達したら一度あきらめて落ちる (接地で回復)。
+      if (intoWall > 0.4 && rise > 0 && rise < 0.75 && (this.mantleN || 0) < 45) {
+        const need = Math.sqrt(2 * C.GRAVITY * (rise + 0.3)); // 縁より少し上まで届く上昇速度
+        if (this.vel.y < need) {
+          this.vel.y = need;
+          this.vel.x += wallNx * 1.5; // 縁の内側へ引き上げる (押し出しで消えるのは接触中だけ)
+          this.vel.z += wallNz * 1.5;
+          this.mantleN = (this.mantleN || 0) + 1;
+          if (this.mantleCd <= 0) {
+            this.mantleCd = 0.35;
+            this.events.push({ t: 'mantle' });
+          }
+        }
+      }
     }
 
     // --- オンラインの他プレイヤーとの当たり判定 ---

@@ -5,7 +5,7 @@ import { Player } from './player.js';
 import { Input } from './input.js';
 import { Ghosts } from './ghosts.js';
 import { Net } from './net.js';
-import { UI } from './ui.js';
+import { UI, fmtTimeMs } from './ui.js';
 import { sfx } from './audio.js';
 import { FX } from './fx.js';
 
@@ -98,6 +98,40 @@ function resetCombo() {
   ui.hideCombo();
 }
 
+// ---- チェックポイント別タイム (区間計測) ----
+// cpTimes: この走行で各 CP を最初に踏んだ時刻 (runStart からの ms)。
+// cpBest: 各 CP までの累計自己ベスト (端末保存, コース = シード単位のキー)。
+const CP_BEST_KEY = `lonelyup_cp_best_v2_${CONFIG.SEED}`;
+let cpTimes = {};
+let lastCpMs = 0;
+let lastSegSeen = null; // 直近にアナウンスした名物区間 (入った瞬間だけ知らせる)
+let cpBest = {};
+try { cpBest = JSON.parse(localStorage.getItem(CP_BEST_KEY) || '{}') || {}; } catch { cpBest = {}; }
+
+function resetRunProgress() {
+  cpTimes = {};
+  lastCpMs = 0;
+  lastSegSeen = null;
+}
+
+// 名物区間の名前。入った瞬間にトーストで「章」の始まりを知らせる (人間が設計した感)。
+// 初見でも攻略の鍵が分かるよう、ひとことヒントを添える。
+const SEG_NAMES = {
+  spiralStairs: '螺旋階段',
+  hairpin: 'つづら折りの坂',
+  narrowBridge: '一本橋 〜踏み外すな〜',
+  bounceRoute: 'バウンドルート 〜緑の台で大ジャンプ〜',
+  chasm: '大跳躍 〜助走全開!〜',
+  dropRoute: '迂回路 〜下って跳べ〜',
+  iceRink: '氷の回廊 〜すべる!〜',
+  conveyorBridge: 'ベルトコンベア橋 〜矢印に流される〜',
+  crumbleRun: '崩れる回廊 〜立ち止まるな!〜',
+  phaseGate: '点滅の間 〜波を読め〜',
+  elevator: '昇降機ゾーン',
+  zigzag: 'ジグザグ道',
+  gauntlet: '⚡ 試練の間 ⚡',
+};
+
 ui.el.nameInput.value = me.name;
 ui.el.nameInput.addEventListener('input', validateName);
 validateName();
@@ -156,6 +190,7 @@ function startRun() {
   nextMilestone = 50;
   clearMsThisRun = 0;
   resetCombo();
+  resetRunProgress();
   state = 'play';
   input.enabled = true;
   ui.startGame();
@@ -170,6 +205,7 @@ document.getElementById('btnRestart').addEventListener('click', () => {
   runStart = performance.now();
   nextMilestone = 50;
   resetCombo();
+  resetRunProgress();
   state = 'play';
   ui.hideClear();
   ui.toast('スタートに戻った');
@@ -383,6 +419,7 @@ document.getElementById('btnClearRestart').addEventListener('click', () => {
   runStart = performance.now();
   nextMilestone = 50;
   resetCombo();
+  resetRunProgress();
   state = 'play';
   ui.hideClear();
 });
@@ -599,6 +636,44 @@ function frame(now) {
         }
         // 着地したら次の足場の方向へ視点を引っ張る
         pullCamToNext();
+        // 名物区間に入った瞬間、区間名をアナウンス (コースの「章」感)
+        const segId = player.standing?.seg;
+        if (segId !== lastSegSeen) {
+          lastSegSeen = segId;
+          const segName = SEG_NAMES[segId];
+          if (segName && state === 'play') {
+            ui.toast(`⛰ ${segName}`);
+            if (segId === 'gauntlet') { // 最難関だけは赤い光で「来たぞ」と脅す
+              fx.glow(0xff5b5b, 0.55);
+              fx.vibrate(20);
+            }
+          }
+        }
+        // チェックポイント通過: 累計タイム + 区間タイム + 自己ベスト差を出す
+        const cp = player.standing?.cp;
+        if (cp && state === 'play' && !cpTimes[cp]) {
+          const ms = Math.round(performance.now() - runStart);
+          cpTimes[cp] = ms;
+          const sect = ms - lastCpMs;
+          lastCpMs = ms;
+          const prevBest = cpBest[cp];
+          let popTxt = 'NEW';
+          let popColor = '#ffd166';
+          if (prevBest != null) {
+            const d = ms - prevBest;
+            popTxt = `${d < 0 ? '' : '+'}${(d / 1000).toFixed(1)}s`;
+            popColor = d < 0 ? '#8ce99a' : '#ff8787';
+          }
+          if (prevBest == null || ms < prevBest) {
+            cpBest[cp] = ms;
+            try { localStorage.setItem(CP_BEST_KEY, JSON.stringify(cpBest)); } catch { /* 容量超過等は無視 */ }
+          }
+          const cpTotal = world.cpCount ? `/${world.cpCount}` : '';
+          ui.toast(`🚩 CP${cp}${cpTotal} ${fmtTimeMs(ms)}（区間 ${fmtTimeMs(sect)}）`);
+          ui.floatReward(`🚩CP${cp} ${popTxt}`, popColor, true);
+          sfx.sparkle();
+          fx.glow(0xffd166, 0.4);
+        }
         // コンボ: 今までより高い足場に乗れたら加算
         if (ev.topY > comboTopY + 0.3) {
           combo++;
@@ -622,8 +697,9 @@ function frame(now) {
         }
         // 着地するたびに、乗った土台を新しい色へ塗り替える。染まった土台が
         // 軌跡として残り、登るほど自分だけのカラフルな塔になる (変化 = ドーパミン)。
+        // 特殊ブロック (動く/崩れる/点滅/氷/ベルト) は色が種類の合図なので塗り替えない。
         landCount++;
-        if (player.standing) {
+        if (player.standing && player.standing.instIndex != null) {
           if (landCount % 5 === 0) {
             // 5回に1回は特大の「当たり」演出 (ネオン色 + キラッ + ✨ポップ)
             const jackpot = JACKPOT_COLORS[Math.floor(Math.random() * JACKPOT_COLORS.length)];
@@ -671,6 +747,13 @@ function frame(now) {
           });
           fx.vibrate(12);
         }
+      } else if (ev.t === 'mantle') {
+        // よじ登り補助が効いた瞬間: 小さな「よいしょ」の手応え (音 + 白い砂ぼこり)
+        sfx.tap();
+        fx.burst(player.pos.x, feetY, player.pos.z, {
+          count: 5, color: 0xffffff, speed: 1.2, up: 0.8,
+          gravity: 4, life: 0.3, spread: 0.3,
+        });
       } else if (ev.t === 'bow') {
         sfx.tap();
       } else if (ev.t === 'fell') {
@@ -737,7 +820,11 @@ function frame(now) {
       });
       // 登頂は画面反転を数回たたみかけて派手に締める
       [0, 160, 320].forEach((ms) => setTimeout(() => fx.invert(120), ms));
-      ui.showClear(clearMsThisRun);
+      // チェックポイント区間タイム表 (通過順) + ゴールタイムをクリア画面に出す
+      const splits = Object.keys(cpTimes).map(Number).sort((a, b) => a - b)
+        .map((k) => ({ label: `CP${k}`, ms: cpTimes[k], best: cpBest[k] }));
+      splits.push({ label: 'GOAL', ms: clearMsThisRun, best: bestClearMs });
+      ui.showClear(clearMsThisRun, splits);
       net.submitScore(me.name, Math.max(allTimeBest, world.goalY), bestClearMs);
     }
 

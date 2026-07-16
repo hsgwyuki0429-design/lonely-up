@@ -411,6 +411,32 @@ html, body {
 .tagline { font-size: 13px; opacity: 0.75; }
 .cleartime { font-size: 34px; font-weight: 800; color: #7fe0a0; font-variant-numeric: tabular-nums; }
 
+/* クリア画面のチェックポイント区間タイム表 */
+.splits {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 28vh;
+  overflow-y: auto;
+}
+.splitrow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.splitrow .slabel { width: 48px; font-weight: 800; color: #ffd97a; text-align: left; }
+.splitrow .ssect { flex: 1; text-align: left; opacity: 0.75; }
+.splitrow .stotal { font-weight: 700; }
+.splitrow .sdiff { min-width: 46px; text-align: right; font-weight: 700; }
+.splitrow .sdiff.gold { color: #ffd166; }
+.splitrow .sdiff.slow { color: #ff8f8f; }
+
 #nameInput {
   width: 100%;
   padding: 12px 14px;

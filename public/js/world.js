@@ -32,6 +32,33 @@ export const JACKPOT_COLORS = [
   0xff4d6d, 0xffd23f, 0x4dd4ff, 0x9d4dff, 0x3ddc84, 0xff7ac4, 0xff9f1c,
 ];
 
+// チェックポイント番号などを空中に出す文字スプライト (縁取り付きで遠くからも読める)
+function makeCpSprite(text) {
+  const cvs = document.createElement('canvas');
+  const font = '900 44px sans-serif';
+  let c = cvs.getContext('2d');
+  c.font = font;
+  const w = Math.ceil(c.measureText(text).width) + 30;
+  cvs.width = w;
+  cvs.height = 64;
+  c = cvs.getContext('2d');
+  c.font = font;
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.lineWidth = 8;
+  c.strokeStyle = 'rgba(10,16,32,0.85)';
+  c.strokeText(text, w / 2, 34);
+  c.fillStyle = '#ffd166';
+  c.fillText(text, w / 2, 34);
+  const tex = new THREE.CanvasTexture(cvs);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex, transparent: true, depthWrite: false,
+  }));
+  const h = 0.85;
+  sp.scale.set(h * (w / 64), h, 1);
+  return sp;
+}
+
 function zonePair(h) {
   let i = 0;
   while (i < ZONES.length - 1 && h >= ZONES[i + 1].h) i++;
@@ -63,9 +90,10 @@ export class World {
 
   // ================== 塔の生成 (tower.js の純粋関数を利用) ==================
   generate() {
-    const { platforms, goalY } = generateTower(CONFIG.SEED);
+    const { platforms, goalY, cpCount } = generateTower(CONFIG.SEED);
     this.platforms = platforms;
     this.goalY = goalY;
+    this.cpCount = cpCount; // チェックポイント総数 (CP2/6 のような進捗表示に使う)
 
     // 衝突判定バケット
     for (const p of this.platforms) {
@@ -131,7 +159,8 @@ export class World {
   // ================== 見た目 ==================
   // 個別メッシュで描く足場か (テーマ着色の対象外。色/挙動そのものが手がかりになる)
   static _isDynamicMesh(p) {
-    return !!p.move || p.kind === 'crumble' || p.kind === 'phase' || p.kind === 'bounce';
+    return !!p.move || p.kind === 'crumble' || p.kind === 'phase' ||
+      p.kind === 'bounce' || p.kind === 'ice' || p.kind === 'conveyor';
   }
 
   buildMeshes() {
@@ -160,9 +189,11 @@ export class World {
     this.scene.add(inst);
 
     // 特殊な足場は個別メッシュ (テーマ着色の対象外)。色そのものが種類の手がかり:
-    //   水色=横に動く / 青=上下に動く / 橙=踏むと崩れる / 紫=時間で消える
+    //   水色=横に動く / 青=上下に動く / 橙=踏むと崩れる / 紫=時間で消える /
+    //   白青=氷 (滑る) / 鉄色+黄矢印=ベルトコンベア
     this.crumbleList = [];
     this.phaseList = [];
+    this.beltList = [];
     for (const p of this.platforms) {
       if (!World._isDynamicMesh(p)) continue;
       let color = 0x66d9e8;
@@ -170,8 +201,11 @@ export class World {
       else if (p.kind === 'crumble') color = 0xffa94d;
       else if (p.kind === 'phase') color = 0xb197fc;
       else if (p.kind === 'bounce') color = 0x69db7c; // バネの緑 (踏むと大きく跳ねる合図)
+      else if (p.kind === 'ice') color = 0xdff4ff;    // 白青の氷 (ツルツル滑る合図)
+      else if (p.kind === 'conveyor') color = 0x4a5679; // 鉄色のベルト (矢印の向きに流される)
       const mat = new THREE.MeshLambertMaterial({ color });
       if (p.kind === 'phase') mat.transparent = true; // 明滅・出現/消滅の演出に使う
+      if (p.kind === 'ice') mat.emissive = new THREE.Color(0x1b4d66); // 氷の内側の光沢感
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.hx * 2, p.hy * 2, p.hz * 2), mat);
       p.colorHex = color; // 破片エフェクトの色
       p.meshRef = mesh;
@@ -180,6 +214,25 @@ export class World {
       if (p.move) this.movingMeshes.push({ p, mesh });
       else if (p.kind === 'crumble') this.crumbleList.push(p);
       else if (p.kind === 'phase') this.phaseList.push(p);
+
+      // ベルトコンベア: 流れる方向を指す黄色の三角形を上面でスクロールさせる
+      if (p.kind === 'conveyor' && p.belt) {
+        const sp = Math.hypot(p.belt.x, p.belt.z) || 1;
+        const dirx = p.belt.x / sp, dirz = p.belt.z / sp;
+        const L = Math.max((Math.abs(dirx) > 0.5 ? p.hx : p.hz) * 2 - 0.5, 0.8); // ベルト軸方向の可動長
+        const marks = [];
+        for (let i = 0; i < 3; i++) {
+          const mk = new THREE.Mesh(
+            new THREE.CircleGeometry(0.24, 3), // 3角形 = 矢印
+            new THREE.MeshBasicMaterial({ color: 0xffd166, side: THREE.DoubleSide })
+          );
+          mk.rotation.x = -Math.PI / 2;
+          mk.rotation.z = Math.atan2(-dirz, dirx); // 頂点がベルトの流れる向きを指す
+          this.scene.add(mk);
+          marks.push(mk);
+        }
+        this.beltList.push({ p, marks, dirx, dirz, L, speed: sp });
+      }
     }
 
     this.applyTheme(0); // 初期テーマ (フォレスト) で全足場を着色
@@ -203,6 +256,12 @@ export class World {
         ring.rotation.x = Math.PI / 2;
         ring.position.set(p.x, p.y + p.hy + 0.05, p.z);
         this.scene.add(ring);
+        // チェックポイント番号の看板 (区間タイム計測の目印)
+        if (p.cp) {
+          const sp = makeCpSprite(`🚩CP${p.cp}`);
+          sp.position.set(p.x, p.y + p.hy + 1.7, p.z);
+          this.scene.add(sp);
+        }
       } else if (p.kind === 'goal') {
         const ring = new THREE.Mesh(
           new THREE.TorusGeometry(2.6, 0.12, 10, 40),
@@ -238,6 +297,13 @@ export class World {
   // 足場1枚の色をテーマから決める
   _colorFor(p, theme, out) {
     if (p.kind === 'goal') return out.setHex(0xffd166); // ゴールは常に金
+    if (p.kind === 'pillar') {
+      // 螺旋階段の柱: テーマの締め色を暗くした石柱 (ランドマークとして目立たせる)
+      if (theme.rainbow) return out.setHex(0x8f98ad);
+      out.setHex(theme.accent);
+      out.offsetHSL(0, -0.1, -0.1);
+      return out;
+    }
     if (theme.rainbow) {
       if (p.kind === 'rest') return out.setHex(0xffffff);
       return out.setHSL(((p.instIndex ?? 0) * 0.11) % 1, 0.62, 0.62); // 段ごとに虹色
@@ -385,6 +451,20 @@ export class World {
     this._updateCrumble(dt, player);
     this._updatePhase(t);
     if (this.goalRing) this.goalRing.rotation.z = t * 0.6;
+
+    // ベルトコンベア: 矢印を流れの向きへスクロール (物理の搬送と同じ速度)
+    for (const b of this.beltList) {
+      const n = b.marks.length;
+      for (let i = 0; i < n; i++) {
+        const u = (((t * b.speed) / b.L + i / n) % 1 + 1) % 1;
+        const s = (u - 0.5) * b.L;
+        b.marks[i].position.set(
+          b.p.x + b.dirx * s,
+          b.p.y + b.p.hy + 0.04,
+          b.p.z + b.dirz * s
+        );
+      }
+    }
 
     // 高度に応じた空の色
     const { a, b, t: k } = zonePair(playerY);
